@@ -1,0 +1,23 @@
+## How long things take 
+
+big-O notation: O(_)
+worst case analysis, care about the end behavior as n -> infinity
+
+1. Lists and how they work for CPython
+
+[5,2,9,7,1,4]
+
+.append()'s time complexity is O(1), because it's going to create a new list, 
+replicate the original items in the old list, and append the new one, and plus O(1) (constant time) 
+
+.pop() will be O(n)
+
+.remove() is O(n) because it has to look for it and find it; worst case is at the last one. Then you'd have to shift it
+
+
+
+Bubble Sort: O(n^2)
+Selection O(n^2)
+Insertion O(n^2)
+mergesort: O(nln(n))
+quicksort O(nln(n))

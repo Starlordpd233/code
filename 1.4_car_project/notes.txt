@@ -1,0 +1,39 @@
+For this project, you will be simulating a 10 x 10 grid on which cars can drive. At the beginning of the program, each location will have 5 cars waiting to enter the grid. Cars enter the grid with a predetermined random goal location. Your goal is to route all 500 cars to their goal location in as few ticks as possible while preventing two cars from occupying the same location at the same time (ie crashing into each other) or falling off the edge of the grid.
+
+Each tick consists of:
+
+1) Bringing onto the grid any number of cars
+
+2) Turning any number of cars in any direction
+
+3) Moving all currently active cars one space forward. **Note that every car will move every tick once it has been activated.**
+
+You are responsible for deciding when cars come onto the grid and when active cars should turn. The code you are provided handles moving active cars forward each tick and checking for errors.
+
+You MAY:
+
+Access the next car that will enter in any given location using the peek method. Note that while the code design would allow you to access "deeper" cars, that breaks the rules. You shouldn't really need to access the inactive 3D list at all.
+You may add helper methods and fields to the Location, Car, and Grid classes as necessary.
+You MAY NOT:
+
+Alter the main method in any way
+Prevent the basic functionality of the problem from working. Ie you can't alter the code so that cars don't move, are allowed to crash, or move forward more than one space in a tick. 
+
+Alter methods you have been provided, other than the updateAll method of the Grid class, where most of your work will happen.
+
+In class the due date, you will present the algorithm you designed and an approximate number of ticks it requires. Note that a naive solution that simply routes one car at a time will require approximately 3300 ticks.
+
+Project starter code is available below. Also, see the Word Document in the folder for more specifics on the tools available to you in each class.
+
+**This idea is a slightly altered form of one by Professor Couch at Tufts University**
+
+A collision is defined as two cars simultenaously land on the same block/grid after the updateall to move every car active on the grid by one step. Another valid collision can happen when you are trying to bring a car up to activate it but there's already a car there occupying the grid at that location; in that situation, you cannot bring the car up because another car is still there. 
+
+Two cars going pass each other does not count as a collision. What I mean by this is that say car 1 position = (0,0) and car 2 = (1,0), and they swap position in the next run after they move, this does not count as a collision. 
+
+use taxicab metrics for calculating distance?
+
+how to simulate and find path?
+
+the collision logic should already be defined by the given start code. also, if more than 1 car are all one last step until they reach their final destination, and they all have the same destination, I'm assuming that this doesn't count as a collision
+
