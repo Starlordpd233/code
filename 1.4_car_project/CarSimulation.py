@@ -10,11 +10,12 @@ def main():
     #for i in range(10):
         os.system('cls' if os.name=='nt' else 'clear')
 
+
         grid.updateAll()
         grid.step()
         print(grid)
 
-        time.sleep(.5)    #alter this number fo speed up your simulation
+        time.sleep(0.05)    #alter this number fo speed up your simulation
         ticks += 1
 
     print(f'Routing complete! {ticks} ticks.')

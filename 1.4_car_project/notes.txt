@@ -43,44 +43,344 @@ Solution Thoughts:
 
 I think the solution is as follows: 
 
-Store: 
-1. each car's two main direction (there should only be two directions that can give shortest distance); this can be useful later if there is a potential collision and it needs to make an emergency change of direction that's not one of those 2 directions. But worst case: what if all 4 directions could lead to a collision? I think to prevent that is to strategically pick the maximum number of cars each click.
+## Complete Walkthrough: Car Routing Simulation
 
+### Problem Recap
 
-Traffic Process:
+We have a 10×10 grid with 5 cars waiting at each of the 100 positions (500 cars total). Each car has a random goal location. Every tick, ALL active cars move forward one cell in whatever direction they're facing. We control:
+1. When to activate (bring onto the grid) waiting cars
+2. What direction each active car should face before it moves
 
-Round 1:
-1.) designate each row with a fixed first-step direction in which the cars in that row can move.
-    The pattern can be: row1: -->, row2: <--, row3: v, row4: up
-2.) In each row, peek at the cars that actually have goals that align with their fixed first-step direction. Store those in a list
-2.5) Sort the list based on the car's distance to their goals
-3.) Out of those cars with aligned direction for the first step, use the first element with the closest distance. If there are multiple with equidistance, pick the one with the smallest column number (so left-first priority sort of)
-4.) The above would guarantee a maximum 10 cars moving each tick. Now, if the number didn't reach 10, loop back to the top row and find the next element (this should give you the next car with closest distance). If still hasn't reached 10, go to the next available row and pick the next car with the closest distance. This should create a situation where the more top the row is, the more cars it will have in that row.
+We cannot pause cars, move them backward, or prevent them from moving once active. A collision occurs if two cars occupy the same cell after a tick's movement, or if we try to activate a car at a location that's already occupied.
 
-4.5) Now, Simulate all 10 cars using taxicab metrics to see if there are any potential collision. 
-5.) Simulate using horizontal-movement-first priority so that the cars will move to their desired column first; then, moves vertically for the desired row. 
-(I'm not sure how we can simulate this and flag those cars that will cause collision with each other.) 
-6.) If there are collisions detected between cars, flag those cars and store the position at which the collision will happen. Store the cars in a temporary list L, and we need to be able to tell which cars exactly they are.
-7.) Activate the rest of the cars that don't cause collisions and move them to their goal. (is this necessary or should we just move all 10 cars all at the same time??)
-8.) For those in L that will cause collision, we will move two at a time (?). (we'd also have to figure out how to pick the 2 each time). I picked 2 because if there is a collision detected after a simulation, len(L) is guaranteed to be >= 2. Moving 2 at a time can be easily dealt with (?) than say moving all the rest of the cars that will cause collisions at the same time (maybe?). At the flagged collision position, we will make one of them make an emergency turn. (Don't knwo how to implement this during each tick after the cars've been moved. How can we set this direction and when?). Then, reset the direction into each respective car's main direction. This should theoretically get all the cars to their goals. Make sure that before all the 10 cars in the list are moved to their goals, we do not activate any other car (?)
-8.5) After step 7) and step 8) of moving the car, be sure to activate next car in that grid location up, only if that next available car has an aligned direction. 
+---
 
-9.) Now, repeat step 3)-8) to get the rest of the cars in each row to their location, until the length of the list (that has all the cars with aligned first step direction) is zero. When this happens, it should be the case that all the cars in each row who has an aligned first-step direction are moved to their goals. The grid should be empty now (?)
+### High-Level Strategy
 
+**Core idea**: Before activating any cars, simulate their entire journey to the goal. Only activate cars whose paths don't conflict with each other (in both space AND time). Each tick, select the largest possible "cohort" of non-conflicting cars to activate, while also managing the directions of already-active cars.
 
+**Routing policy**: All cars use "horizontal-first" routing. They move left/right until they reach their goal column, then move up/down until they reach their goal row. This creates predictable, deterministic paths.
 
-Round 2:
-1.) designate a different fixed first-step direction for each row.
-2.) the remaining logic should be identical to round 1
+---
 
-Round 3:
-1.) designate a different fixed first-step direction for each row.
-2.) the remaining logic should be identical to round 1
+### Data Structures We Need
 
-Round 4:
-1.) designate a different fixed first-step direction for each row.
-2.) the remaining logic should be identical to round 1
+**Global tick counter**: An integer tracking how many ticks have passed since the simulation started. Starts at 0.
 
-Now, repeat this flow (round1-4) with the fixed first-step direction for each round for each row. Terminates after all cars've been moved.
+**Car metadata storage**: For each active car, we need to remember:
+- When it was activated (which global tick)
+- Its planned direction sequence (a list of directions it should face at each step of its journey)
 
+**Reserved cells table**: A lookup structure that answers "Is cell (row, col) occupied at tick T?" This is rebuilt every tick based on:
+- Projected future positions of all currently active cars
+- Projected paths of cars we're considering activating
+
+---
+
+### The Main Loop (What Happens Each Tick)
+
+The simulation alternates between `updateAll()` (which we write) and `step()` (which is provided). Here's what happens each tick:
+
+```
+REPEAT until all 500 cars have reached their goals:
+    1. updateAll() is called — we decide what to do
+    2. step() is called — all active cars move forward one cell
+```
+
+---
+
+### Detailed Logic for updateAll()
+
+This is the heart of our solution. Each time `updateAll()` is called, we do the following:
+
+#### Phase 1: Set Directions for Already-Active Cars
+
+Before we think about new cars, we need to make sure every car that's already on the grid is facing the correct direction for its next move.
+
+```
+FOR each cell (row, col) on the grid:
+    IF there's an active car at this cell:
+        Figure out how many ticks this car has been active
+        Look up its direction sequence
+        Find the direction it should face this tick
+        Call setDirection on the car with that direction
+```
+
+**Example**: A car was activated at global tick 5. It's now global tick 8, so the car has been active for 3 ticks and has already moved 3 times. We look at position 3 in its direction sequence to find what direction it should face for its 4th move.
+
+#### Phase 2: Project Future Positions of Active Cars
+
+Before selecting new cars, we need to know where all the active cars will be at every future tick until they reach their goals.
+
+```
+Create an empty reserved cells table
+
+FOR each active car on the grid:
+    Calculate its current position
+    Calculate how many moves it has left to reach its goal
+    
+    FOR each future tick until it reaches its goal:
+        Calculate where it will be at that tick
+        Mark that (row, col, tick) as reserved in the table
+```
+
+**Example**: An active car is at (3, 5) heading to (3, 8). It needs 3 more moves (all to the right). If the current global tick is 10, we reserve:
+- (3, 6) at global tick 11
+- (3, 7) at global tick 12
+- (3, 8) at global tick 13
+
+#### Phase 3: Gather Candidate Cars for Activation
+
+Now we look at all positions on the grid and identify cars that *could* potentially be activated this tick.
+
+```
+Create an empty list of candidates
+
+FOR each cell (row, col) on the grid:
+    IF there's NO active car at this cell:
+        Peek at the next waiting car at this cell
+        IF there is a waiting car:
+            Compute its full path from (row, col) to its goal
+            Calculate the path length (number of ticks to reach goal)
+            Add this car to the candidates list with its path info
+```
+
+A car's path is a sequence of positions it will occupy at each tick after activation. For horizontal-first routing:
+
+```
+To compute path for a car at (startRow, startCol) going to (goalRow, goalCol):
+    
+    Create empty path list
+    Set currentRow = startRow, currentCol = startCol
+    Set tick = 0 (relative to when this car is activated)
+    
+    // Horizontal movement phase
+    WHILE currentCol ≠ goalCol:
+        Increment tick
+        IF goalCol > currentCol:
+            Move right: currentCol = currentCol + 1
+        ELSE:
+            Move left: currentCol = currentCol - 1
+        Add (currentRow, currentCol, tick) to path
+    
+    // Vertical movement phase
+    WHILE currentRow ≠ goalRow:
+        Increment tick
+        IF goalRow > currentRow:
+            Move down: currentRow = currentRow + 1
+        ELSE:
+            Move up: currentRow = currentRow - 1
+        Add (currentRow, currentCol, tick) to path
+    
+    Return path
+```
+
+**Example**: Car at (2, 1) with goal (0, 3).
+
+Horizontal first: move right from col 1 to col 3 (2 moves), then move up from row 2 to row 0 (2 moves).
+
+Path (using relative ticks):
+- Tick 0: (2, 1) — starting position
+- Tick 1: (2, 2) — moved right
+- Tick 2: (2, 3) — moved right, now at goal column
+- Tick 3: (1, 3) — moved up
+- Tick 4: (0, 3) — moved up, reached goal
+
+#### Phase 4: Sort Candidates
+
+We want to prioritize certain cars to maximize throughput. Sorting by path length (shortest first) is a good heuristic because:
+- Short-path cars clear quickly, freeing up space
+- They reserve fewer cells, leaving room for more cars in the cohort
+
+```
+Sort candidates by path length, shortest first
+
+IF two candidates have equal path length:
+    Break ties by position (e.g., top-left first) for consistency
+```
+
+#### Phase 5: Greedy Cohort Selection
+
+Now we iterate through candidates and add them to our cohort if they don't conflict with anything already reserved.
+
+```
+Create empty list of selected cars (the cohort)
+
+FOR each candidate in sorted order:
+    Convert the candidate's path from relative ticks to global ticks
+    (If global tick is 10, the car's tick 0 becomes global tick 10,
+     tick 1 becomes global tick 11, etc.)
+    
+    Check for conflicts:
+        Set hasConflict = false
+        FOR each (row, col, globalTick) in the converted path:
+            IF (row, col, globalTick) is in the reserved cells table:
+                Set hasConflict = true
+                BREAK out of loop
+    
+    IF hasConflict is false:
+        Add this candidate to the selected cohort
+        FOR each (row, col, globalTick) in the converted path:
+            Mark (row, col, globalTick) as reserved
+        
+        Also store this car's direction sequence for Phase 1 in future ticks
+```
+
+**Why greedy works**: We can't efficiently find the true maximum cohort (it's NP-hard), but greedy gives us a good approximation. By sorting shortest-first, we tend to fit more cars because short paths "use up" less of the space-time grid.
+
+#### Phase 6: Activate Selected Cars
+
+```
+FOR each car in the selected cohort:
+    Get the car's starting location
+    Call activateCar(location) to bring it onto the grid
+    Set its initial direction based on its direction sequence
+```
+
+#### Phase 7: Increment Global Tick
+
+```
+Increment global tick counter by 1
+```
+
+---
+
+### Computing the Direction Sequence
+
+When we select a car for activation, we also precompute the sequence of directions it should face at each tick of its journey.
+
+```
+To compute direction sequence for car at (startRow, startCol) going to (goalRow, goalCol):
+    
+    Create empty direction list
+    Set currentCol = startCol, currentRow = startRow
+    
+    // Horizontal movement directions
+    WHILE currentCol ≠ goalCol:
+        IF goalCol > currentCol:
+            Add RIGHT (3) to direction list
+            currentCol = currentCol + 1
+        ELSE:
+            Add LEFT (2) to direction list
+            currentCol = currentCol - 1
+    
+    // Vertical movement directions
+    WHILE currentRow ≠ goalRow:
+        IF goalRow > currentRow:
+            Add DOWN (1) to direction list
+            currentRow = currentRow + 1
+        ELSE:
+            Add UP (0) to direction list
+            currentRow = currentRow - 1
+    
+    Return direction list
+```
+
+**Example**: Car at (2, 1) going to (0, 3).
+- Directions: [RIGHT, RIGHT, UP, UP] or [3, 3, 0, 0]
+
+At tick 0 of this car's journey, it faces RIGHT.
+At tick 1, it faces RIGHT again.
+At tick 2, it faces UP.
+At tick 3, it faces UP.
+After tick 3's movement, it reaches (0, 3) and is removed.
+
+---
+
+### Handling Edge Cases
+
+**What if a car's spawn point stays blocked?**
+
+If cell (r, c) has an active car, we can't activate the next waiting car there. It simply stays in the candidates list and gets reconsidered next tick. Eventually the active car moves away.
+
+**What if the reserved table gets too large?**
+
+In the worst case, we might have paths extending 18+ ticks into the future (maximum Manhattan distance on a 10×10 grid is 18). With up to ~100 active cars, that's manageable. The table is rebuilt fresh each tick anyway.
+
+**What about cars reaching their goal simultaneously?**
+
+The provided code handles this: when a car reaches its goal in `step()`, it's removed *before* collision checking. So two cars arriving at the same goal on the same tick don't collide—they both just get removed.
+
+**What if horizontal-first creates too many conflicts?**
+
+This could happen if many cars need to cross the same column. An optimization would be to try vertical-first for some cars when horizontal-first fails. But for a first implementation, pure horizontal-first should work reasonably well.
+
+---
+
+### Worked Example of One Tick
+
+**Setup**: Global tick is 0. Grid is empty. Let's say we have these waiting cars (simplified to just 4):
+
+| Position | Goal | Path (relative ticks) | Length |
+|----------|------|----------------------|--------|
+| (0, 0) | (0, 2) | (0,0,0)→(0,1,1)→(0,2,2) | 3 |
+| (0, 1) | (2, 1) | (0,1,0)→(1,1,1)→(2,1,2) | 3 |
+| (1, 0) | (1, 2) | (1,0,0)→(1,1,1)→(1,2,2) | 3 |
+| (2, 2) | (0, 0) | (2,2,0)→(2,1,1)→(2,0,2)→(1,0,3)→(0,0,4) | 5 |
+
+**Phase 1**: No active cars yet, nothing to do.
+
+**Phase 2**: Reserved table starts empty.
+
+**Phase 3**: All 4 are candidates.
+
+**Phase 4**: Sort by length. First three are tied at length 3, last one is length 5.
+
+**Phase 5**: Greedy selection.
+
+- **Car A at (0,0)**: Path is (0,0,0), (0,1,1), (0,2,2). No conflicts. SELECT. Reserve these cells.
+
+- **Car B at (0,1)**: Path is (0,1,0), (1,1,1), (2,1,2). Check conflicts:
+  - (0,1,0): Not reserved. OK.
+  - (1,1,1): Not reserved. OK.
+  - (2,1,2): Not reserved. OK.
+  - No conflicts. SELECT. Reserve these cells.
+
+- **Car C at (1,0)**: Path is (1,0,0), (1,1,1), (1,2,2). Check conflicts:
+  - (1,0,0): Not reserved. OK.
+  - (1,1,1): **RESERVED by Car B!** CONFLICT. SKIP.
+
+- **Car D at (2,2)**: Path is (2,2,0), (2,1,1), (2,0,2), (1,0,3), (0,0,4). Check conflicts:
+  - None of these are reserved. SELECT. Reserve these cells.
+
+**Result**: Cohort is {Car A, Car B, Car D}. Car C waits.
+
+**Phase 6**: Activate cars A, B, D. Set their initial directions.
+
+**Phase 7**: Global tick becomes 1.
+
+**Then step() runs**: All three cars move forward one cell.
+
+**Next tick**: Car C will be reconsidered. By then, Car B has moved away from (1,1,1) in the global timeline, so there may no longer be a conflict.
+
+---
+
+### Expected Performance
+
+With this approach:
+- Each tick, we potentially activate 10-50 cars (depends on conflict density)
+- Average path length is ~6-7 cells (expected Manhattan distance on 10×10 grid)
+- Total ticks should be roughly 200-400, compared to 3300 for the naive one-at-a-time approach
+
+---
+
+### Summary Checklist
+
+1. **Track global tick** — know what "time" it is in the simulation
+2. **For each active car, remember its direction sequence** — so we can set its direction each tick
+3. **Each tick, first set directions for all active cars** — they need to face the right way before step() moves them
+4. **Project all active cars' future positions into reserved table** — so new cars don't collide with them
+5. **Gather candidates from peek()** — any cell without an active car is a potential activation point
+6. **Compute each candidate's path using horizontal-first routing** — deterministic, predictable paths
+7. **Sort candidates by path length** — short paths first
+8. **Greedily select non-conflicting candidates** — check against reserved table, add if clear
+9. **Activate selected cars and store their direction sequences** — bring them onto grid
+10. **Increment global tick** — prepare for next iteration
+
+---
+
+Thoughts for improvement:
+
+should we improve or revise in the way we select candidates?
+For presentation, we should probably create a batch script that runs the simulation a lot of times and then sorts of graphs and visualizes the results.
 
