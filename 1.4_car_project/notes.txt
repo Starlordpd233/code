@@ -37,3 +37,50 @@ how to simulate and find path?
 
 the collision logic should already be defined by the given start code. also, if more than 1 car are all one last step until they reach their final destination, and they all have the same destination, I'm assuming that this doesn't count as a collision
 
+
+
+Solution Thoughts:
+
+I think the solution is as follows: 
+
+Store: 
+1. each car's two main direction (there should only be two directions that can give shortest distance); this can be useful later if there is a potential collision and it needs to make an emergency change of direction that's not one of those 2 directions. But worst case: what if all 4 directions could lead to a collision? I think to prevent that is to strategically pick the maximum number of cars each click.
+
+
+Traffic Process:
+
+Round 1:
+1.) designate each row with a fixed first-step direction in which the cars in that row can move.
+    The pattern can be: row1: -->, row2: <--, row3: v, row4: up
+2.) In each row, peek at the cars that actually have goals that align with their fixed first-step direction. Store those in a list
+2.5) Sort the list based on the car's distance to their goals
+3.) Out of those cars with aligned direction for the first step, use the first element with the closest distance. If there are multiple with equidistance, pick the one with the smallest column number (so left-first priority sort of)
+4.) The above would guarantee a maximum 10 cars moving each tick. Now, if the number didn't reach 10, loop back to the top row and find the next element (this should give you the next car with closest distance). If still hasn't reached 10, go to the next available row and pick the next car with the closest distance. This should create a situation where the more top the row is, the more cars it will have in that row.
+
+4.5) Now, Simulate all 10 cars using taxicab metrics to see if there are any potential collision. 
+5.) Simulate using horizontal-movement-first priority so that the cars will move to their desired column first; then, moves vertically for the desired row. 
+(I'm not sure how we can simulate this and flag those cars that will cause collision with each other.) 
+6.) If there are collisions detected between cars, flag those cars and store the position at which the collision will happen. Store the cars in a temporary list L, and we need to be able to tell which cars exactly they are.
+7.) Activate the rest of the cars that don't cause collisions and move them to their goal. (is this necessary or should we just move all 10 cars all at the same time??)
+8.) For those in L that will cause collision, we will move two at a time (?). (we'd also have to figure out how to pick the 2 each time). I picked 2 because if there is a collision detected after a simulation, len(L) is guaranteed to be >= 2. Moving 2 at a time can be easily dealt with (?) than say moving all the rest of the cars that will cause collisions at the same time (maybe?). At the flagged collision position, we will make one of them make an emergency turn. (Don't knwo how to implement this during each tick after the cars've been moved. How can we set this direction and when?). Then, reset the direction into each respective car's main direction. This should theoretically get all the cars to their goals. Make sure that before all the 10 cars in the list are moved to their goals, we do not activate any other car (?)
+8.5) After step 7) and step 8) of moving the car, be sure to activate next car in that grid location up, only if that next available car has an aligned direction. 
+
+9.) Now, repeat step 3)-8) to get the rest of the cars in each row to their location, until the length of the list (that has all the cars with aligned first step direction) is zero. When this happens, it should be the case that all the cars in each row who has an aligned first-step direction are moved to their goals. The grid should be empty now (?)
+
+
+
+Round 2:
+1.) designate a different fixed first-step direction for each row.
+2.) the remaining logic should be identical to round 1
+
+Round 3:
+1.) designate a different fixed first-step direction for each row.
+2.) the remaining logic should be identical to round 1
+
+Round 4:
+1.) designate a different fixed first-step direction for each row.
+2.) the remaining logic should be identical to round 1
+
+Now, repeat this flow (round1-4) with the fixed first-step direction for each round for each row. Terminates after all cars've been moved.
+
+
