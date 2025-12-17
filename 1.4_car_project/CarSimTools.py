@@ -76,6 +76,10 @@ class Grid:
         self.active = [[None for r in range(DIM)] for c in range(DIM)]
         self.global_tick = 0
 
+        #for visualization
+        self.tick_stats = []
+        self.last_reserved_cells_with_time = set()
+
         for r in range(DIM):
             for c in range(DIM):
                 for i in range(5):
@@ -172,34 +176,14 @@ class Grid:
         return future_path
 
 
-    '''TO BE IMPLEMENTED:
-       1) Bring on any cars that should come onto the grid
-       2) Turn any cars that should be turned
-       **You may not alter inactive or active in any other way**
-    '''
-    '''
-    def updateAll(self):
-        if self.is_empty(): #for naive implementation
-            done = False
-            for r in range(len(self.active)):
-                for c in range(len(self.active[r])):
-                    loc = Location(r,c)
-                    if self.peek(loc):
-                        self.activateCar(loc)
-                        done = True
-                        break
-                if done:
-                    break
-        
-        for r in range(len(self.active)):
-                for c in range(len(self.active[r])):
-                    car = self.active[r][c]
-                    if car:
-                        #tell the car to point the right way#################################
-                        pass                     
-    '''
+    # TO BE IMPLEMENTED:
+    #   1) Bring on any cars that should come onto the grid
+    #   2) Turn any cars that should be turned
+    #   **You may not alter inactive or active in any other way**
 
     def updateAll(self):
+        # for visualization
+        active_car_count = sum(1 for row in self.active for car in row if car)
 
         #set the next direction for each active car
         for row in self.active:
@@ -218,13 +202,16 @@ class Grid:
                 if car:
                     current_row = car.get_position().row
                     current_col = car.get_position().col
-
                     future_path = self.compute_future_path(current_row, current_col, car.get_goal().row, car.get_goal().col)
 
                     for tup in future_path:
                         reserved_cells_with_time.add(tup) 
 
-        #Now, we will gather potential candidate cars for activation. There is not a maximum number. 
+        # For visualization tools (e.g. make_gif.py)
+        self.last_reserved_cells_with_time = reserved_cells_with_time
+
+        #Now, we will gather potential candidate grid cells for activation. There is not a maximum number. 
+        #we're basically just putting all waiting cars in this list and sort them by path length.
 
         candidates = []
 
@@ -273,7 +260,7 @@ class Grid:
                 if cell in reserved_cells_with_time:
                     has_conflict = True
                     break
-            
+
             if not has_conflict:
                 selected_cars.append(candidate)
 
@@ -285,6 +272,14 @@ class Grid:
                 car.activation_tick = self.global_tick
                 car.setDirection(car.direction_sequence[0])
                 self.activateCar(Location(candidate['start_row'], candidate['start_col']))
+
+
+        #record tick stats for visualization
+        self.tick_stats.append({
+            'tick': self.global_tick,
+            'active_cars': active_car_count,
+            'reserved_size': len(reserved_cells_with_time)
+        })
 
         self.global_tick += 1
 
@@ -344,4 +339,3 @@ class Grid:
         ret += '\n\n'
 
         return ret
-

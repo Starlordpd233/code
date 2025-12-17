@@ -1,0 +1,14 @@
+# CarSim Visualization Suite Requirements
+# Install with: pip install -r requirements.txt
+
+# Data manipulation
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Plotting and visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# GIF generation
+imageio>=2.31.0
+Pillow>=10.0.0
