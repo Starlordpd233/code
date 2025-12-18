@@ -1,6 +1,6 @@
 import random
 
-DIM = 10
+DIM = 50
 
 class Location:
     def __init__(self, r, c):
@@ -242,6 +242,7 @@ class Grid:
 
         #Now, sort the candidates based on path length and position
         candidates.sort(key=lambda x: (x['path_length'], x['start_row'], x['start_col']))
+        
 
 
 
@@ -282,7 +283,6 @@ class Grid:
         })
 
         self.global_tick += 1
-
 
 
 

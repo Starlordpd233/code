@@ -15,7 +15,7 @@ def main():
         grid.step()
         print(grid)
 
-        time.sleep(0.05)    #alter this number fo speed up your simulation
+        #time.sleep(0.05)    #alter this number fo speed up your simulation
         ticks += 1
 
     print(f'Routing complete! {ticks} ticks.')
