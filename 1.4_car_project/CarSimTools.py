@@ -1,6 +1,6 @@
 import random
 
-DIM = 50
+DIM = 10
 
 class Location:
     def __init__(self, r, c):
@@ -195,7 +195,7 @@ class Grid:
                         car.setDirection(direction)
 
         #Now look up all the future positions of each active car
-        reserved_cells_with_time = set()
+        reserved_cells_with_time = set() #faster lookup than list
 
         for row in self.active:
             for car in row:
