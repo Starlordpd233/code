@@ -27,7 +27,7 @@ def read_csv_data():
     return block_schedule, students_parsed
 
 
-def parse_blocks(students:list): #returns a list of free blocks of each student in one list
+def parse_blocks(students:list): #returns a list of blocks of each student in one list containing '' (None) or '1'
     blocks_for_all_students = [student[2] for student in students]
 
     for i in range(len(blocks_for_all_students)):

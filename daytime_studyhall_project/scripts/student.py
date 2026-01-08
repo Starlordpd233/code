@@ -16,16 +16,17 @@ Note that you should read the file as plain text to have practice parsing data -
 '''
 
 class Student:
-    def __init__(self, name, grade, free_blocks):
+    def __init__(self, name, grade):
         self.name = name
         self.grade = grade
 
-        self.free_blocks = set(free_blocks) #fast lookup
+        self.free_blocks = set() #fast lookup
 
         self.scheduled_sh = [] #iniaties for now as placeholder for future schedule study hall (sh)
     
-    def get_freeBlocks(self, student_block_schedule):
-        freeBlocks = find_freeBlocks(student_block_schedule)
+
+    def get_freeBlocks(self, block_schedule, student_block_schedule):
+        freeBlocks = find_freeBlocks(block_schedule, student_block_schedule)
         self.free_blocks.update(freeblock for freeblock in freeBlocks)
 
     
@@ -51,6 +52,7 @@ class Student:
 
     def __str__(self):
         return f"""Name: {self.name}
-        Grade: {self.grade}
-        Free Blocks: {self.free_blocks}
-        Scheduled Study Hall Sessions: {self.scheduled_sh}"""
+Grade: {self.grade[6:]}
+Free Blocks: {self.free_blocks}
+Scheduled Study Hall Sessions: {self.scheduled_sh}"""
+
