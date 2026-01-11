@@ -1,5 +1,5 @@
-from modules import read_csv_data, parse_blocks
-from student import Student
+#from modules import read_csv_data, parse_blocks
+#from student import Student
 
 if __name__ == "__main__":
 

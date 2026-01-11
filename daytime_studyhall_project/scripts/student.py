@@ -1,22 +1,20 @@
-from modules import find_freeBlocks #I don't need the other two methods in this script since I think I will import them in the main.py script
 
-'''
-Project Description:
-Your first task in working toward a functional study hall project is to get the Free Period CSV read into your program. Because this project has an object-oriented focus, you should design and create a Student class. A student object should have at minimum the following functionality:
 
-Create a student object from some form of entry data (a CSV line as a string, a list of values, etc)
-A method that returns a boolean value of whether or not a student is free in a specific block
-Once scheduled, a method that returns a list of their scheduled study halls. Pre-scheduling, it could be an empty list, a None, or a False -- up to you.
-A method that indicates whether or not a given student should be scheduled for more study halls.
-A __str__ method that prints the student information in a useful way.
-Any helper methods necessary for you to accomplish this.
-Remember to avoid data duplication (think: why?). This portion of the project should read in the CSV and create a collection (list, dictionary, etc) of Student objects. Output them in some way to be sure it has worked correctly.
+def find_freeBlocks(blocks, student_block_schedule: list): #for one student
 
-Note that you should read the file as plain text to have practice parsing data -- packages that do it for you should not be used.
-'''
+    free_blocks = []
+
+    if len(blocks) == len(student_block_schedule): #just double check to make sure index will match and that student schedule is valid
+        for i in range(len(student_block_schedule)):
+            if student_block_schedule[i] == '1':
+                free_blocks.append(blocks[i])
+
+    return free_blocks
+
 
 class Student:
-    def __init__(self, name, grade):
+    def __init__(self, id, name, grade):
+        self.id = id
         self.name = name
         self.grade = grade
 
@@ -35,15 +33,16 @@ class Student:
         return block in self.free_blocks
 
     def needs_sh(self):
-        if len(self.free_blocks) <= 1: #if anyone has only 1 free, they don't need sh
-            return False
+        if self.grade == 'Grade 9':
+            target = 2
         else:
-            if self.grade == 'Grade 9':
-                if len(self.free_blocks) >= 3: 
-                    return True
-            else:
-                if len(self.free_blocks) >= 2:
-                    return True
+            target = 1
+        
+        numberOF_current_sh = len(self.scheduled_sh)
+        numberOF_remaining_free = len(self.free_blocks) - numberOF_current_sh
+
+        return numberOF_current_sh < target and numberOF_remaining_free > 1
+
 
     def add_sh(self, sh_block): 
         #requires the sh_block to be in the exact format of 'DxBx'
