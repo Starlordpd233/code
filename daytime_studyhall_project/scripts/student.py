@@ -1,13 +1,13 @@
+from block import Block
 
-
-def find_freeBlocks(blocks, student_block_schedule: list): #for one student
+def find_freeBlocks(block_schedule: list, student_block_schedule: list) -> list: #for one student
 
     free_blocks = []
 
-    if len(blocks) == len(student_block_schedule): #just double check to make sure index will match and that student schedule is valid
+    if len(block_schedule) == len(student_block_schedule): #just double check to make sure index will match and that student schedule is valid
         for i in range(len(student_block_schedule)):
             if student_block_schedule[i] == '1':
-                free_blocks.append(blocks[i])
+                free_blocks.append(block_schedule[i])
 
     return free_blocks
 
@@ -28,7 +28,7 @@ class Student:
         self.free_blocks.update(freeblock for freeblock in freeBlocks)
 
     
-    def is_free(self, block):
+    def is_free(self, block: Block):
         #block is a specific block, and I'm not sure if we're given directly the string in the form, ex. 'D5B2'
         return block in self.free_blocks
 
@@ -52,6 +52,6 @@ class Student:
     def __str__(self):
         return f"""Name: {self.name}
 Grade: {self.grade[6:]}
-Free Blocks: {self.free_blocks}
-Scheduled Study Hall Sessions: {self.scheduled_sh}"""
+Free Blocks: {[str(b) for b in self.free_blocks]}
+Scheduled Study Hall Sessions: {[str(b) for b in self.scheduled_sh]}"""
 

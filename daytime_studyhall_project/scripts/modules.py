@@ -1,8 +1,9 @@
 from student import Student
+from block import Block
 
 _block_schedule = []
 _students = []
-_sh_sessions = []
+_sh_sections = {}
 
 
 #Helper Functions
@@ -55,7 +56,15 @@ def read_students(filename: str) -> str:
     global _block_schedule, _students
 
     try:
-        _block_schedule, students_parsed = read_csv_data(filename)
+        _students = [] #clears the lists
+        _block_schedule = []
+
+
+        block_schedule, students_parsed = read_csv_data(filename)
+        for block in block_schedule:
+            b = Block(block)
+            if isinstance(b, Block):
+                _block_schedule.append(b) #ordered list
 
         all_students_blocks = parse_blocks(students_parsed) #gets all the students blocks in one single list
 
@@ -73,43 +82,43 @@ def read_students(filename: str) -> str:
         return f"Successfully loaded {len(_students)} students."
 
     except FileNotFoundError:
-        return f"Error: File '{filename} not found"
+        return f"Error: File '{filename}' not found"
     except Exception as e:
         return f"Error reading student data: {e}"
 
 
-
-
 def read_sections(filename: str) -> str:
-    global _sh_sessions
+    global _sh_sections
+    _sh_sections = []
 
     try: 
         with open(filename, 'r') as f:
             lines = f.read().strip().split('\n')
 
-        sessions = lines[1:]
-        sections_parsed = []
+        sections = lines[1:]
 
-        for i, line in enumerate(sessions):
-            sessions[i] = line.split(',')
+        for i, line in enumerate(sections):
+            sections[i] = line.split(',')
 
-            internal_class_id = sessions[i][0]
-            class_id = sessions[i][1]
-            description = sessions[i][2]
-            grading_periods = sessions[i][-1]
+            internal_class_id = sections[i][0]
+            class_id = sections[i][1]
+            description = sections[i][2]
+            grading_periods = sections[i][-1]
+            block = class_id[-4:]
 
-            sections_parsed.append([internal_class_id, class_id, description, grading_periods])
+            _sh_sections[Block(block)] = {
+                "block": block,
+                "internal_class_id": internal_class_id,
+                "class_id": class_id,
+                "description": description,
+                "grading_periods": grading_periods,
+                "num_of_students_in_here": 0 #initializes the count here
+            }
 
-        sh_sessions = []
+            #sections_parsed.append([internal_class_id, class_id, description, grading_periods])
 
-        for section in sections_parsed:
-            class_ID = section[1]
-            blocks = class_ID[-4:] #prints the last 4 characters
-            sh_sessions.append(blocks)
 
-        _sh_sessions = sh_sessions
-
-        return f"Successfully loaded {len(_sh_sessions)} study hall sessions"
+        return f"Successfully loaded {len(_sh_sections)} study hall sessions"
     
     except FileNotFoundError:
         return f"Error: File '{filename}' not found."
@@ -117,24 +126,46 @@ def read_sections(filename: str) -> str:
         return f"Error reading section data: {e}"
 
 
+def schedule():
+    global _students, _sh_sections, _block_schedule
+    max_per_sh_ppl = 35 #can change this later if needed
+
+    if not _students:
+        return "Error: No student data loaded"
+    if not _sh_sections:
+        return "Error: No study hall section loaded"
+    
+    
+    
+
 
 #for testing
 if __name__ == "__main__":
 
-    path = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Study Hall Free Blocks Clean.csv'
-    block_schedule, students_parsed = read_csv_data(path)
-    print(read_sections('/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'))
-    print(read_students(path))
+    path_studentInfo = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Study Hall Free Blocks Clean.csv'
+    path_sh_sections = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'
+    
+    block_schedule, students_parsed = read_csv_data(path_studentInfo)
+    read_students(path_studentInfo)
+    read_sections(path_sh_sections)
+
+    print(_students[0])
+    #print(read_sections('/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'))
+    #print(read_students(path))
 
 
 
-    print(block_schedule)
+    print(_block_schedule)
     print('---')
-    print(students_parsed[0])
-    print('---')
-    print(len(students_parsed))
-    print('---')
-    print(_sh_sessions)
+    #print(students_parsed[0])
+    #print('---')
+    #print(len(students_parsed))
+    #print('---')
+    print(_sh_sections)
+
+    student0 = students_parsed[0]
+    student_test = Student(student0[0], student0[1], student0[2])
+    #student_test = student_test.get_freeBlocks(_block_schedule)
 
 
     
