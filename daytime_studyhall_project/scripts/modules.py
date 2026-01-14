@@ -1,11 +1,3 @@
-from student import Student
-from block import Block
-
-_block_schedule = []
-_students = []
-_sh_sections = {}
-
-
 #Helper Functions
 def read_csv_data(csv_path):
 
@@ -50,132 +42,13 @@ def parse_blocks(students:list): #returns a list of blocks of each student in on
     #at this point, each element in the list of each student's block schedule matches in index with the 28 blocks
 
 
+def sort_sh_sections(d: dict) -> dict:
+    priority = {2:0, 4:1, 1:2}
+    sorted_sh_sections = sorted(d.keys(), key=lambda block: priority[block.which_block()])
 
-#Public Functions
-def read_students(filename: str) -> str:
-    global _block_schedule, _students
-
-    try:
-        _students = [] #clears the lists
-        _block_schedule = []
-
-
-        block_schedule, students_parsed = read_csv_data(filename)
-        for block in block_schedule:
-            b = Block(block)
-            if isinstance(b, Block):
-                _block_schedule.append(b) #ordered list
-
-        all_students_blocks = parse_blocks(students_parsed) #gets all the students blocks in one single list
-
-        for i, student_data in enumerate(students_parsed):
-            id = student_data[0]
-            name = student_data[1]
-            grade = student_data[2]
-
-            student = Student(id, name, grade)
-
-            student.get_freeBlocks(_block_schedule, all_students_blocks[i])
-
-            _students.append(student)
-
-        return f"Successfully loaded {len(_students)} students."
-
-    except FileNotFoundError:
-        return f"Error: File '{filename}' not found"
-    except Exception as e:
-        return f"Error reading student data: {e}"
-
-
-def read_sections(filename: str) -> str:
-    global _sh_sections
-    _sh_sections = []
-
-    try: 
-        with open(filename, 'r') as f:
-            lines = f.read().strip().split('\n')
-
-        sections = lines[1:]
-
-        for i, line in enumerate(sections):
-            sections[i] = line.split(',')
-
-            internal_class_id = sections[i][0]
-            class_id = sections[i][1]
-            description = sections[i][2]
-            grading_periods = sections[i][-1]
-            block = class_id[-4:]
-
-            _sh_sections[Block(block)] = {
-                "block": block,
-                "internal_class_id": internal_class_id,
-                "class_id": class_id,
-                "description": description,
-                "grading_periods": grading_periods,
-                "num_of_students_in_here": 0 #initializes the count here
-            }
-
-            #sections_parsed.append([internal_class_id, class_id, description, grading_periods])
-
-
-        return f"Successfully loaded {len(_sh_sections)} study hall sessions"
+    #rebuild the dict
+    sorted_dict = {}
+    for key in sorted_sh_sections:
+        sorted_dict[key] = d[key]
     
-    except FileNotFoundError:
-        return f"Error: File '{filename}' not found."
-    except Exception as e:
-        return f"Error reading section data: {e}"
-
-
-def schedule():
-    global _students, _sh_sections, _block_schedule
-    max_per_sh_ppl = 35 #can change this later if needed
-
-    if not _students:
-        return "Error: No student data loaded"
-    if not _sh_sections:
-        return "Error: No study hall section loaded"
-    
-    
-    
-
-
-#for testing
-if __name__ == "__main__":
-
-    path_studentInfo = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Study Hall Free Blocks Clean.csv'
-    path_sh_sections = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'
-    
-    block_schedule, students_parsed = read_csv_data(path_studentInfo)
-    read_students(path_studentInfo)
-    read_sections(path_sh_sections)
-
-    print(_students[0])
-    #print(read_sections('/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'))
-    #print(read_students(path))
-
-
-
-    print(_block_schedule)
-    print('---')
-    #print(students_parsed[0])
-    #print('---')
-    #print(len(students_parsed))
-    #print('---')
-    print(_sh_sections)
-
-    student0 = students_parsed[0]
-    student_test = Student(student0[0], student0[1], student0[2])
-    #student_test = student_test.get_freeBlocks(_block_schedule)
-
-
-    
-
-
-
-
-
-
-
-
-
-
+    return sorted_dict

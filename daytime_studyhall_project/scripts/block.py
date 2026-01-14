@@ -19,14 +19,16 @@ class Block:
                 count += 1
 
             return count + 1
-            
+
+    #functionality for 9th graders only     
     def get_distance(self, other) -> int: #returns 1, 2, 3, or 4
-        seq = [1, 5, 2, 6, 3, 7, 4] #hardcoded sequence of the schedule
+        seq = [1, 5, 2, 6, 3, 7, 4] #hardcoded sequence of the schedule days
 
         self_index = seq.index(self.day)
         target_index = seq.index(other.day)
         
-        return (target_index - self_index) % len(seq)
+        forward = (target_index - self_index) % len(seq)
+        return min(forward, 7 - forward) #for the rap
     
     def __eq__(self, other) -> bool: #needs this so that python knows how to compare different block objects and see if they're identifical
         if not isinstance(other, Block):
@@ -34,7 +36,7 @@ class Block:
         
         return self.day == other.day and self.block == other.block
 
-    def __hash__(self) -> int: #for sets to work
+    def __hash__(self) -> int: #for sets/dict to work
         return hash((self.day, self.block))
     
     def __str__(self):

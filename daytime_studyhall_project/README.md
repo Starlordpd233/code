@@ -87,3 +87,10 @@ Because the UI will be provided separately, your scheduling code must expose **e
 ## Information on Block Schedule
 
 There are 7 days in the schedule from D1-D7, and each day begins with the block of the same number (meaning D1 begins with B1, D2 with B2, D3 with B3, etc.). Each day only has 4 blocks, and the blocks go from one to the next. Example with D1 is as follows: begins with B1, and goes to B2, B3, B4. Example with D2 is: B2, B3, B4, B5, and so on. The caveat is that the blocks wrapps around 7 and starts back at 1 and should never exceed 7. An example is D7: B7, B1, B2, B3. There is a FIXED sequence of the day schedule in this particular order: D1, D5, D2, D6, D3, D7, D4.
+
+## Engineering Decision for `schedule()`
+
+- keeps people in the same grade in each study hall session if possible
+- keep the separation of 2 days as soft ideal preference and not strict exclusion
+- we will not implement and schedule study hall sections in third blocks because no third block offerings exist in current data of course offerings
+
