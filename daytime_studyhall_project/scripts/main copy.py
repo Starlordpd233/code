@@ -56,6 +56,7 @@ def swap_and_move(stu_in, stu_out, block_of_swapping, destination_block_for_stu_
     return msg1, msg2, msg3
 
 
+
 #Public Functions for UI
 def read_students(filename: str) -> str:
     global _block_schedule, _students
@@ -134,6 +135,17 @@ def read_sections(filename: str) -> str:
 
 def schedule():
     global _students, _sh_sections, _block_schedule
+    preference_bias = 6
+    def get_section_score(block):
+        count = _sh_sections[block]["num_of_students_in_here"]
+
+        if count < 8:
+            return count - 1000
+
+        is_preferred = block.which_block() in [2,4]
+
+        return count + (0 if is_preferred else preference_bias)
+
     max_ppl_per_sh = 35 #can change this later if needed
     min_ppl_per_sh = 5
     
@@ -163,9 +175,11 @@ def schedule():
     #in this case since 9th graders are the majority, we'll assign them first
     #first round
     for student in ninth_grader:
+        
         if student.needs_sh():
 
             candidates = []
+
             for i in range(len(student.availability)): #to be able to use i to check if we're at the end of a student's avail list and still hasn't assigned them their first sh due to skipping
                 avail = student.availability[i] #the block
                 if _sh_sections[avail]["num_of_students_in_here"] >= max_ppl_per_sh:
@@ -177,14 +191,10 @@ def schedule():
                 
             if candidates:
                 #defines "best" as the section (only 2nd or 4th) with the least num of people; if no 2nd or 4th availability, go to the 1st block
-                candidates = sorted(candidates, key=lambda block: _sh_sections[block]["num_of_students_in_here"])
-                best = None
-                for candidate in candidates:
-                    if candidate.which_block() in [2,4]:
-                        best = candidate
-                        break
-                    elif best is None:
-                        best = candidate
+                
+                candidates.sort(key=get_section_score)
+
+                best = candidates[0]
                 
                 #now assigns the student
                 if student.add_sh(best):
@@ -224,14 +234,9 @@ def schedule():
                         #relaxed_rule_used = True      
 
             if candidates:
-                candidates = sorted(candidates, key=lambda block: _sh_sections[block]["num_of_students_in_here"])
-                best = None
-                for candidate in candidates:
-                    if candidate.which_block() in [2,4]:
-                        best = candidate
-                        break
-                    elif best is None:
-                        best = candidate
+                candidates.sort(key=get_section_score)
+                best = candidates[0]
+
                 
                 if student.add_sh(best):
                     _sh_sections[best]["num_of_students_in_here"] += 1
@@ -249,6 +254,7 @@ def schedule():
                     student.notes.append("Could not place the second study hall: the student's all other available alternatives sections are full") #so if this is appended to the student's message, do we know that this is talking about all the student's availabilities are full, or the right next one we are looking at in the second round is full? Is it referring to all the blocks inside the student's availabilities?
 
     
+
     #Next we'll tackle the situation where certain 9th graders only got 1 study hall because during Round 2, every section in their availability list was at max_ppl_per_sh (35)
     ninth_w_only_1sh = [s for s in ninth_grader if len(s.scheduled_sh) == 1]
 
@@ -327,32 +333,60 @@ def schedule():
     #now we have to tackle specific blocks who have way less people in them (below min requirement)
     underfilled_sections = [sh for sh in _sh_sections if _sh_sections[sh]["num_of_students_in_here"] < min_ppl_per_sh]
     donor_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] > 25]
+    donor_threshold = 15
 
     for und in underfilled_sections:
-        moved = False
-
-        while _sh_sections[und]["num_of_students_in_here"] < min_ppl_per_sh: #########THIS IS A CRITICAL, ARBITRARY PARAMETER
-            moved = False
-            for donor in donor_sections:
-                for student in _sh_sections[donor]["list_of_students"]:
+        for donor in donor_sections:
+            for student in list(_sh_sections[donor]["list_of_students"]):
+                if _sh_sections[donor]["num_of_students_in_here"] <= donor_threshold:
+                    break
                     #if they can be moved to underfilled that's not currently their scheduled section
+                if und not in student.availability or und in student.scheduled_sh:
+                    continue
+                
+                if not all(und.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh if scheduled != donor):
+                    continue
+        
+                update_sh_section("add", student, und, _sh_sections)
+                update_sh_section("remove", student, donor, _sh_sections)
+                student.notes.append(f"Moved from {donor} to {und} to fill underfilled section")
+        
+        '''
+        #if the previous one didn't run successfully, this one ignores spacing
+        if _sh_sections[und]["num_of_students_in_here"] < min_ppl_per_sh:
+            for donor in donor_sections:
+                for student in list(_sh_sections[donor]["list_of_students"]):
+                    if _sh_sections[donor]["num_of_students_in_here"] <= donor_threshold:
+                        break 
+
                     if und not in student.availability or und in student.scheduled_sh:
                         continue
-                    if not all(und.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh if scheduled != donor):
-                        continue
-        
+                    
+                    # Move without checking spacing
                     update_sh_section("add", student, und, _sh_sections)
                     update_sh_section("remove", student, donor, _sh_sections)
-                    moved = True
-                    break
-                if moved:
-                    break
+                    student.notes.append(f"Balanced (Forced): Moved from {donor} to {und} (Ignored Spacing)")
+        '''
+    
+    print("\n--- DIAGNOSTIC: Why are sections underfilled? ---")
+    underfilled = [s for s in _sh_sections if _sh_sections[s]["num_of_students_in_here"] < 15] # Assuming 15 is your target
+
+    for section in underfilled:
+        current_count = _sh_sections[section]["num_of_students_in_here"]
+        
+        # Count students who had this block free but are sitting in a different section right now
+        missed_opportunities = 0
+        for student in ninth_grader:
+            # If they are NOT in this section, but they COULD have been (it's in their availability)
+            if section in student.availability and section not in student.scheduled_sh:
+                missed_opportunities += 1
                 
-            if not moved:
-                break
-                
+        print(f"Section {section}: Currently has {current_count}. Other candidates available: {missed_opportunities}")
                 
     return ninth_grader, tenth_grader
+
+
+
 
 
 def write_database_output(sh_section, output_path):
@@ -439,6 +473,23 @@ if __name__ == "__main__":
     print(f"\n--- Section Fill Counts ---")
     for block, info in _sh_sections.items():
         print(f"  {block}: {block.which_block()}: {info['num_of_students_in_here']} students")
+
+    min_ppl_per_sh = 5
+    underfilled_sections = {
+        block: info
+        for block, info in _sh_sections.items()
+        if info["num_of_students_in_here"] < min_ppl_per_sh
+    }
+    print(f"\n--- Underfilled Sections (<{min_ppl_per_sh}) ---")
+    if not underfilled_sections:
+        print("  None")
+    else:
+        for block, info in underfilled_sections.items():
+            print(f"\n  {block} ({block.which_block()}): {info['num_of_students_in_here']} students")
+            for stu in info["list_of_students"]:
+                scheduled = [str(b) for b in stu.scheduled_sh]
+                availability = [str(b) for b in stu.availability]
+                print(f"    ID: {stu.id} | Name: {stu.name} | Grade: {stu.grade} | Scheduled: {scheduled} | Availability: {availability}")
     
 
     print(f"\n--- 9th Grader Study Hall Distribution ---")

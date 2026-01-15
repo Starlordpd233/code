@@ -49,6 +49,7 @@ class Student:
     def set_availability(self, sh_sections):
         self.availability = []
         for sh in sh_sections:
+            #if sh_sections are sorted already, then this will be in sorted order too.
             if sh in self.free_blocks:
                 self.availability.append(sh)
 
@@ -92,5 +93,6 @@ class Student:
 Grade: {self.grade}
 Free Blocks: {[str(b) for b in self.free_blocks]}
 Potential SH Availability: {[str(b) for b in self.availability]}
-Scheduled Study Hall Sessions: {[str(b) for b in self.scheduled_sh]}"""
+Scheduled Study Hall Sessions: {[str(b) for b in self.scheduled_sh]}
+Notes: {[str(b) for b in self.notes]}"""
 
