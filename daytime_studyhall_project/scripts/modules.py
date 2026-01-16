@@ -42,13 +42,53 @@ def parse_blocks(students:list): #returns a list of blocks of each student in on
     #at this point, each element in the list of each student's block schedule matches in index with the 28 blocks
 
 
-def sort_sh_sections(d: dict) -> dict:
-    priority = {2:0, 4:1, 1:2}
-    sorted_sh_sections = sorted(d.keys(), key=lambda block: priority[block.which_block()])
-
-    #rebuild the dict
-    sorted_dict = {}
-    for key in sorted_sh_sections:
-        sorted_dict[key] = d[key]
+def compute_sh_section_demand(students, sh_sections) -> dict:
     
-    return sorted_dict
+    for s in students:
+        availabilities = list(b for b in s.free_blocks if b in sh_sections)
+        
+        for avail in availabilities:
+            sh_sections[avail]["demand"] += 1
+
+
+
+def sort_sh_sections(sh_sections: dict) -> dict:
+    priority = {2:0, 4:0, 1:1}
+    
+    return sorted(sh_sections.keys(),
+    key=lambda block: (
+        sh_sections[block]["demand"],
+        priority[block.which_block()],
+        block.day,
+        block.block
+    ))
+    #how effective will this sort be? what will the outcome be?
+
+
+def get_valid_candidates(student, sh_sections, max_capacity):
+
+    candidates = []
+
+    for avail in student.availability:
+        if sh_sections[avail]["num_of_students_in_here"] >= max_capacity:
+            continue
+        if not all(avail.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh):
+            continue
+
+        candidates.append(avail)
+    
+    return candidates
+
+
+def pick_best_section(candidates, sh_sections):
+    if not candidates:
+        return None
+
+    priority = {2:0, 4:0, 1:1}
+
+    return min(candidates, key=lambda block: (
+        sh_sections[block]["demand"],
+        priority[block.which_block()],
+        sh_sections[block]["num_of_students_in_here"]
+    ))
+

@@ -46,12 +46,9 @@ class Student:
         return numberOF_current_sh < target and numberOF_remaining_free > 1
 
 
-    def set_availability(self, sh_sections):
-        self.availability = []
-        for sh in sh_sections:
-            #if sh_sections are sorted already, then this will be in sorted order too.
-            if sh in self.free_blocks:
-                self.availability.append(sh)
+    def set_availability(self, ordered_sh_sections: list):
+
+        self.availability = [sh for sh in ordered_sh_sections if sh in self.free_blocks]
 
     def add_sh(self, sh_block): 
         if self.needs_sh() and sh_block not in self.scheduled_sh:

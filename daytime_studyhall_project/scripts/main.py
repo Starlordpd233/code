@@ -1,6 +1,6 @@
 from student import Student
 from block import Block
-from modules import read_csv_data, parse_blocks, sort_sh_sections
+from modules import compute_sh_section_demand, read_csv_data, parse_blocks, sort_sh_sections, get_valid_candidates, pick_best_section
 
 _block_schedule = []
 _students = []
@@ -57,41 +57,6 @@ def swap_and_move(stu_in, stu_out, block_of_swapping, destination_block_for_stu_
 
 
 #Public Functions for UI
-def read_students(filename: str) -> str:
-    global _block_schedule, _students
-
-    try:
-        _students = [] #clears the lists
-        _block_schedule = []
-
-
-        block_schedule, students_parsed = read_csv_data(filename)
-        for block in block_schedule:
-            b = Block(block)
-            if isinstance(b, Block):
-                _block_schedule.append(b) #ordered list
-
-        all_students_blocks = parse_blocks(students_parsed) #gets all the students blocks in one single list
-
-        for i, student_data in enumerate(students_parsed):
-            id = student_data[0]
-            name = student_data[1]
-            grade = student_data[2]
-
-            student = Student(id, name, grade)
-
-            student.set_freeBlocks(_block_schedule, all_students_blocks[i])
-
-            _students.append(student)
-
-        return f"Successfully loaded {len(_students)} students."
-
-    except FileNotFoundError:
-        return f"Error: File '{filename}' not found"
-    except Exception as e:
-        return f"Error reading student data: {e}"
-
-
 def read_sections(filename: str) -> str:
     global _sh_sections
     _sh_sections = {}
@@ -120,7 +85,8 @@ def read_sections(filename: str) -> str:
                 "description": description,
                 "grading_periods": grading_periods,
                 "list_of_students": [],
-                "num_of_students_in_here": 0 #initializes the count here
+                "num_of_students_in_here": 0, #initializes the count here,
+                "demand" : 0
             }
 
 
@@ -130,6 +96,43 @@ def read_sections(filename: str) -> str:
         return f"Error: File '{filename}' not found."
     except Exception as e:
         return f"Error reading section data: {e}"
+
+
+def read_students(filename: str) -> str:
+    global _block_schedule, _students
+
+    try:
+        _students = [] #clears the lists
+        _block_schedule = []
+
+
+        block_schedule, students_parsed = read_csv_data(filename)
+        for block in block_schedule:
+            b = Block(block)
+            if isinstance(b, Block):
+                _block_schedule.append(b) #ordered list
+
+        all_students_blocks = parse_blocks(students_parsed) #gets all the students blocks in one single list
+
+        for i, student_data in enumerate(students_parsed):
+            id = student_data[0]
+            name = student_data[1]
+            grade = student_data[2]
+
+            student = Student(id, name, grade)
+
+            student.set_freeBlocks(_block_schedule, all_students_blocks[i])
+
+
+            _students.append(student)
+
+        return f"Successfully loaded {len(_students)} students."
+
+    except FileNotFoundError:
+        return f"Error: File '{filename}' not found"
+    except Exception as e:
+        return f"Error reading student data: {e}"
+
 
 
 def schedule():
@@ -142,14 +145,15 @@ def schedule():
         return "Error: No student data loaded"
     if not _sh_sections:
         return "Error: No study hall section loaded"
-    
-    avg_ppl_per_sh = len(_students)//len(_sh_sections)
 
-    _sh_sections = sort_sh_sections(_sh_sections) #but when I sort later (i forgot which sort it is), wouldn't that just override this one?
+    compute_sh_section_demand(_students, _sh_sections)
 
-    #finds availability of each students
+    #TODO we have to change subsequent code that needs to use this ordered list since we changed this variable name.
+    ordered_sh_sections_list = sort_sh_sections(_sh_sections) #but when I sort later (i forgot which sort it is), wouldn't that just override this one?
+
+    #set up once availability of each students
     for s in _students: 
-        s.set_availability(_sh_sections)    
+        s.set_availability(ordered_sh_sections_list)    
 
 
     #sort the things
@@ -161,180 +165,73 @@ def schedule():
 
 
     #in this case since 9th graders are the majority, we'll assign them first
-    #first round
+    #------------------------------------------------------------------------
+    #FIRST ROUND
     for student in ninth_grader:
         if student.needs_sh():
 
-            candidates = []
-            for i in range(len(student.availability)): #to be able to use i to check if we're at the end of a student's avail list and still hasn't assigned them their first sh due to skipping
-                avail = student.availability[i] #the block
-                if _sh_sections[avail]["num_of_students_in_here"] >= max_ppl_per_sh:
-                    continue
-                if not all(avail.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh):
-                    continue
-                candidates.append(avail)
+            candidates = get_valid_candidates(student, _sh_sections, max_ppl_per_sh)
+            best = pick_best_section(candidates, _sh_sections)
                 
-                
-            if candidates:
-                #defines "best" as the section (only 2nd or 4th) with the least num of people; if no 2nd or 4th availability, go to the 1st block
-                candidates = sorted(candidates, key=lambda block: _sh_sections[block]["num_of_students_in_here"])
-                best = None
-                for candidate in candidates:
-                    if candidate.which_block() in [2,4]:
-                        best = candidate
-                        break
-                    elif best is None:
-                        best = candidate
-                
-                #now assigns the student
-                if student.add_sh(best):
-                    msg = update_sh_section("add", student, best, _sh_sections)
+            if best and student.add_sh(best):
+                msg = update_sh_section("add", student, best, _sh_sections)
 
-                    if msg != "added":
-                        return msg
+                if msg != "added":
+                    return msg
 
-
-    #second round to assign second sh section for nineth graders
+    #-----------------------------------------------------------------------
+    #SECOND ROUND
     for student in ninth_grader:
         if student.needs_sh():
-            placed = False
-            relaxed_rule_used = False
+            candidates = get_valid_candidates(student, _sh_sections, max_ppl_per_sh)
+            best = pick_best_section(candidates, _sh_sections)
+        
+            #relaxed attempt to pick best by relaxing distance rule
+            if not best:
+                relaxed_candidates = [avail for avail in student.availability if _sh_sections[avail]["num_of_students_in_here"] < max_ppl_per_sh and avail not in student.scheduled_sh]
 
-            candidates = []
-            for avail in student.availability:
-                if _sh_sections[avail]["num_of_students_in_here"] >= max_ppl_per_sh:
-                    continue
-                if not all(avail.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh):
-                    continue
-                candidates.append(avail)
+                best = pick_best_section(relaxed_candidates, _sh_sections)
+                if best:
+                    student.notes.append("Placed with relaxed spacing rule for second study hall (consecutive study halls now)")
+
+
+            if best and student.add_sh(best):
+                msg = update_sh_section("add", student, best, _sh_sections)
+                if msg != "added":
+                    return msg
             
-            if not candidates: #if there isn't any candidate selected due to: 1. section full, 2. distance is all <= 1, or student has no availability left (this case shouldn't be the reason since we prechecked the data) -> so the only reason would be the distance issue, so we'll relax it here
-                for avail in student.availability:
-                    if _sh_sections[avail]["num_of_students_in_here"] >= max_ppl_per_sh:
-                        continue
-
-                    #---------
-                    if not all(avail.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh):
-                        continue
-                    #---------
-
-                    candidates.append(avail) #get rid of the distance check
-
-                    #if candidates:
-                        #relaxed_rule_used = True      
-
-            if candidates:
-                candidates = sorted(candidates, key=lambda block: _sh_sections[block]["num_of_students_in_here"])
-                best = None
-                for candidate in candidates:
-                    if candidate.which_block() in [2,4]:
-                        best = candidate
-                        break
-                    elif best is None:
-                        best = candidate
-                
-                if student.add_sh(best):
-                    _sh_sections[best]["num_of_students_in_here"] += 1
-                    _sh_sections[best]["list_of_students"].append(student)
-
-                    placed = True
-
-                    #if relaxed_rule_used:
-                        #student.notes.append("This student's second block could be placed only after relaxing the distance rule of 1 day apart. So now the students have consecutive study halls.")
-            
-            if not placed:
-                if len(student.availability) == 0:
-                    student.notes.append("Could not place the second study hall: no other availability was found")
-                else:
-                    student.notes.append("Could not place the second study hall: the student's all other available alternatives sections are full") #so if this is appended to the student's message, do we know that this is talking about all the student's availabilities are full, or the right next one we are looking at in the second round is full? Is it referring to all the blocks inside the student's availabilities?
-
+            #failed for some other reasons
+            elif not best:
+                student.notes.append("Could not place the second study hall: the student's all other available alternatives sections are full")
     
-    #Next we'll tackle the situation where certain 9th graders only got 1 study hall because during Round 2, every section in their availability list was at max_ppl_per_sh (35)
-    ninth_w_only_1sh = [s for s in ninth_grader if len(s.scheduled_sh) == 1]
-
-
-    for s in ninth_w_only_1sh: # I think we should extend this to do swaps not just for students who have only 1 study hall but also for those, after the second round placement, who got placed into 1st block sh and that block only has very little people below the mim requirement?
-        alternative = [b for b in s.availability if b not in s.scheduled_sh]
-        placed = False
-        any_passed_spacing = False
-
-
-        if alternative:
-
-            for a in alternative:
-                spacing_ok = all(a.get_distance(scheduled) > 1 for scheduled in s.scheduled_sh)
-
-                if not spacing_ok:
-                    continue
-
-                any_passed_spacing = True
-
-                students_in_section = _sh_sections[a]["list_of_students"]
-
-                for stu in students_in_section:
-                    ok, alt = stu.can_move_out(a, _sh_sections, max_ppl_per_sh)
-
-                    if ok and alt != None:
-                        swap_and_move(s, stu, a, alt, _sh_sections)
-                        placed = True
-                        break
-
-                if placed:
-                    break
-
-            if not placed:
-                if not any_passed_spacing:
-                    s.notes.append("All alternative sections failed spacing check (distance <= 1)")
-                else:
-                    s.notes.append("No valid alternative found: no student in those sections could be moved out because they lack alternatives")
-
-        else:
-            s.notes.append("No alternative availability found. This student is assigned on 1 study hall sections")
-    
-
-
+    #-----------------------------------------------------------------------
+    #FOR TENTH GRADER
     for student in tenth_grader:
         if student.needs_sh():
 
-            candidates = []
-            for i in range(len(student.availability)): 
-                avail = student.availability[i] #the block
-                if _sh_sections[avail]["num_of_students_in_here"] >= max_ppl_per_sh:
-                    continue
-                if not all(avail.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh):
-                    continue
-                candidates.append(avail)
+            candidates = get_valid_candidates(student, _sh_sections, max_ppl_per_sh)
+            best = pick_best_section(candidates, _sh_sections)
                 
-                
-            if candidates:
-                #defines "best" as the section (only 2nd or 4th) with the least num of people; if no 2nd or 4th availability, go to the 1st block
-                candidates = sorted(candidates, key=lambda block: _sh_sections[block]["num_of_students_in_here"])
-                best = None
-                for candidate in candidates:
-                    if candidate.which_block() in [2,4]:
-                        best = candidate
-                        break
-                    elif best is None:
-                        best = candidate
-                
-                #now assigns the student
-                if student.add_sh(best):
-                    msg = update_sh_section("add", student, best, _sh_sections)
+            if best and student.add_sh(best):
+                msg = update_sh_section("add", student, best, _sh_sections)
 
-                    if msg != "added":
-                        return msg
+                if msg != "added":
+                    return msg
+
     
-    #now we have to tackle specific blocks who have way less people in them (below min requirement)
-    underfilled_sections = [sh for sh in _sh_sections if _sh_sections[sh]["num_of_students_in_here"] < min_ppl_per_sh]
-    donor_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] > 25]
+    #now a checking to enforce the min people requirement
+    underfilled_sections = [sh for sh in _sh_sections if 0 < _sh_sections[sh]["num_of_students_in_here"] < min_ppl_per_sh]
+
 
     for und in underfilled_sections:
         moved = False
 
         while _sh_sections[und]["num_of_students_in_here"] < min_ppl_per_sh: #########THIS IS A CRITICAL, ARBITRARY PARAMETER
+            donor_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] > 25]
+
             moved = False
             for donor in donor_sections:
-                for student in _sh_sections[donor]["list_of_students"]:
+                for student in list(_sh_sections[donor]["list_of_students"]):
                     #if they can be moved to underfilled that's not currently their scheduled section
                     if und not in student.availability or und in student.scheduled_sh:
                         continue
@@ -350,9 +247,10 @@ def schedule():
                 
             if not moved:
                 break
-                
+    
                 
     return ninth_grader, tenth_grader
+    
 
 
 def write_database_output(sh_section, output_path):
@@ -393,6 +291,12 @@ if __name__ == "__main__":
     block_schedule, students_parsed = read_csv_data(path_studentInfo)
     read_students(path_studentInfo)
     read_sections(path_sh_sections)
+
+    compute_sh_section_demand(_students, _sh_sections)
+    print([f"{str(b)} (demand: {_sh_sections[b]['demand']})" for b in sort_sh_sections(_sh_sections)])
+    
+
+    
     nineth, tenth = schedule()
 
 
@@ -460,3 +364,4 @@ if __name__ == "__main__":
     else:
         for s in students_with_notes:
             print(f"  {s.name}: {s.notes}")
+    
