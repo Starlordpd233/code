@@ -70,8 +70,6 @@ def read_sections(filename: str) -> str:
         for i, line in enumerate(sections):
             sections[i] = line.split(',')
 
-
-            #todo: this depends on order and might be suboptimal
             internal_class_id = sections[i][0]
             class_id = sections[i][1]
             description = sections[i][2]
@@ -148,8 +146,8 @@ def schedule():
 
     compute_sh_section_demand(_students, _sh_sections)
 
-    #TODO we have to change subsequent code that needs to use this ordered list since we changed this variable name.
-    ordered_sh_sections_list = sort_sh_sections(_sh_sections) #but when I sort later (i forgot which sort it is), wouldn't that just override this one?
+
+    ordered_sh_sections_list = sort_sh_sections(_sh_sections) 
 
     #set up once availability of each students
     for s in _students: 
@@ -202,7 +200,7 @@ def schedule():
             
             #failed for some other reasons
             elif not best:
-                student.notes.append("Could not place the second study hall: the student's all other available alternatives sections are full")
+                student.notes.append("Could not place the second study hall: no available section under capacity (after relaxing spacing)")
     
     #-----------------------------------------------------------------------
     #FOR TENTH GRADER
@@ -219,14 +217,13 @@ def schedule():
                     return msg
 
     
-    #now a checking to enforce the min people requirement
+    #now a checking to try to "enforce" the min people requirement
     underfilled_sections = [sh for sh in _sh_sections if 0 < _sh_sections[sh]["num_of_students_in_here"] < min_ppl_per_sh]
-
 
     for und in underfilled_sections:
         moved = False
 
-        while _sh_sections[und]["num_of_students_in_here"] < min_ppl_per_sh: #########THIS IS A CRITICAL, ARBITRARY PARAMETER
+        while _sh_sections[und]["num_of_students_in_here"] < min_ppl_per_sh: 
             donor_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] > 25]
 
             moved = False
@@ -247,10 +244,47 @@ def schedule():
                 
             if not moved:
                 break
-    
-                
-    return ninth_grader, tenth_grader
-    
+
+
+    total_enrollments = sum(info["num_of_students_in_here"] for info in _sh_sections.values())
+
+    short_ninth = sum(1 for s in ninth_grader if len(s.scheduled_sh) < 2)
+    short_tenth = sum(1 for s in tenth_grader if len(s.scheduled_sh) < 1)
+    short_total = short_ninth + short_tenth
+
+    underfilled_count = sum(1 for b in _sh_sections if 0 < _sh_sections[b]["num_of_students_in_here"] < min_ppl_per_sh)
+
+
+    db_path = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/output/database_output_class_enrollment.csv'
+    report_path = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/output/scheduling_report.txt'
+
+    db_success, db_msg, db_count = write_database_output(_sh_sections, db_path)
+    report_success, report_msg, report_count = write_human_report(report_path)
+
+
+    lines = []
+    lines.append(f"Successfully scheduled {len(_students)} students.")
+    lines.append(f"- {total_enrollments} total enrollments")
+    lines.append(f"- {short_total} students short of target")
+
+    if underfilled_count > 0:
+        lines.append(f"- {underfilled_count} underfilled sections remain")
+
+    lines.append("")
+    lines.append("Output files:")
+
+    if db_success:
+        lines.append(f"- Database: {db_path} ({db_count} records)")
+    else:
+        lines.append(f"- Database: FAILED - {db_msg}")
+
+    if report_success:
+        lines.append(f"- Report: {report_path}")
+    else:
+        lines.append(f"- Report: FAILED - {report_msg}")
+
+    return '\n'.join(lines)
+
 
 
 def write_database_output(sh_section, output_path):
@@ -266,6 +300,7 @@ def write_database_output(sh_section, output_path):
     
     try:
         with open(output_path, 'w') as f:
+            f.write("internal_class_id,class_id,school_year,veracross_student_id,grade_level\n")
             for row in rows:
                 line = ",".join(str(val) for val in row)
                 f.write(line+"\n")
@@ -278,90 +313,145 @@ def write_database_output(sh_section, output_path):
 
 
 
+def write_human_report(output_path):
+    global _students, _sh_sections
+    min_ppl_per_sh = 5
+    lines = []
 
+    #helpers
+    def get_target(grade):
+        if grade == 9:
+            return 2
+        return 1
+
+    def get_reason(student):
+        if student.notes:
+            return " | ".join(student.notes)
+        if len(student.availability) == 0:
+            return "No study hall blocks available"
+        if len(student.availability) <= len(student.scheduled_sh):
+            return "No remaining available sections"
+        return "Capacity or spacing constraints"
+
+
+    ninth = [s for s in _students if s.grade == 9]
+    tenth = [s for s in _students if s.grade == 10]
+
+    ninth_0 = sum(1 for s in ninth if len(s.scheduled_sh) == 0)
+    ninth_1 = sum(1 for s in ninth if len(s.scheduled_sh) == 1)
+    ninth_2 = sum(1 for s in ninth if len(s.scheduled_sh) == 2)
+
+    tenth_0 = sum(1 for s in tenth if len(s.scheduled_sh) == 0)
+    tenth_1 = sum(1 for s in tenth if len(s.scheduled_sh) == 1)
+
+    total_enrollments = sum(info["num_of_students_in_here"] for info in _sh_sections.values())
+
+    empty_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] == 0]
+    underfilled = [b for b in _sh_sections if 0 < _sh_sections[b]["num_of_students_in_here"] < min_ppl_per_sh]
+    ok_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] >= min_ppl_per_sh]
+
+    short_students = [s for s in _students if len(s.scheduled_sh) < get_target(s.grade)]
+
+    students_with_notes = [s for s in _students if s.notes]
+
+
+    lines.append("=" * 60)
+    lines.append("DAYTIME STUDY HALL SCHEDULING REPORT")
+    lines.append("")
+
+    lines.append("SUMMARY")
+    lines.append("-" * 40)
+    lines.append(f"Total students: {len(_students)}")
+    lines.append(f"Total enrollments: {total_enrollments}")
+    lines.append("")
+
+    lines.append("9th Graders (target: 2 study halls):")
+    lines.append(f"2 study halls: {ninth_2}")
+    lines.append(f"1 study hall:  {ninth_1}")
+    lines.append(f"0 study halls: {ninth_0}")
+    lines.append(f"Total Num of 9th Graders: {len(ninth)}")
+    lines.append("")
+
+    lines.append("10th Graders (target: 1 study hall):")
+    lines.append(f"1 study hall:  {tenth_1}")
+    lines.append(f"0 study halls: {tenth_0}")
+    lines.append(f"Total Num of 10th Graders: {len(tenth)}")
+    lines.append("")
+
+
+    lines.append("=" * 60)
+    lines.append("SECTION FILL SUMMARY")
+    lines.append("-" * 40)
+
+    for block in sorted(_sh_sections.keys(), key=lambda b: (b.day, b.block)): #order by day and block for readability
+        count = _sh_sections[block]["num_of_students_in_here"]
+        if count == 0:
+            status = "EMPTY"
+        elif count < min_ppl_per_sh:
+            status = "UNDERFILLED"
+        else:
+            status = "OK"
+        lines.append(f"{str(block):<10} {count:>3} students  [{status}]")
+
+    lines.append("")
+    lines.append(f"Active Study Hall Sections Counts: {len(ok_sections) + len(underfilled)}  |  Empty: {len(empty_sections)}  |  Underfilled: {len(underfilled)}")
+    lines.append("")
+
+
+    lines.append("=" * 60)
+    lines.append("STUDENTS SHORT OF DESIRED NUM OF STUDY HALLS")
+
+    if not short_students:
+        lines.append("All students received their target.")
+    else:
+        for s in sorted(short_students, key=lambda x: (x.grade, x.id)): #sort by grade and id
+            target = get_target(s.grade)
+            actual = len(s.scheduled_sh)
+            reason = get_reason(s)
+            lines.append(f"{s.id} (Grade {s.grade}): scheduled: {actual}   |    target: {target} - Reason: {reason}")
+
+    lines.append("")
+
+
+    lines.append("=" * 60)
+    lines.append("NOTES FROM ASSIGNMENT PROCESS")
+    lines.append("-" * 50)
+
+    if not students_with_notes:
+        lines.append("None.")
+    else:
+        for s in sorted(students_with_notes, key=lambda x: x.id):
+            lines.append(f"{s.id}:")
+            for note in s.notes:
+                lines.append(f"  - {note}")
+
+    lines.append("")
+    lines.append("=" * 60)
+    lines.append("END")
+
+    try:
+        with open(output_path, 'w') as f:
+            f.write('\n'.join(lines))
+
+        return (True, f"Report written to {output_path}", len(short_students))
+
+    except Exception as e:
+        return (False, f"Report failed: {e}", 0)
 
 
 
 #for testing
 if __name__ == "__main__":
 
-    path_studentInfo = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Study Hall Free Blocks Clean.csv'
-    path_sh_sections = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'
-    
-    block_schedule, students_parsed = read_csv_data(path_studentInfo)
-    read_students(path_studentInfo)
-    read_sections(path_sh_sections)
+      path_studentInfo = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Study Hall Free Blocks Clean.csv'
+      path_sh_sections = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/data/Spring Study Hall Sessions.csv'
 
-    compute_sh_section_demand(_students, _sh_sections)
-    print([f"{str(b)} (demand: {_sh_sections[b]['demand']})" for b in sort_sh_sections(_sh_sections)])
-    
-
-    
-    nineth, tenth = schedule()
+      print(read_students(path_studentInfo))
+      print(read_sections(path_sh_sections))
+      print()
+      print(schedule())
 
 
-    sh_which_blocks = [b.which_block() for b in _sh_sections]
+
+
    
-    print(f"Number of students: {len(_students)}\n")
-
-    print(f"Example student: \n{_students[0]}")
-
-    if any(len(s.availability) == 0 for s in _students):
-        print("There are students with no availability")
-    else:
-        print("All students have availability")
-    
-
-    print(nineth[0])
-    print(sum(info["num_of_students_in_here"] for info in _sh_sections.values()) == sum(len(s.scheduled_sh) for s in _students))
-
-
-
-    # Debug: Count 9th graders by number of scheduled study halls
-    ninth_with_0 = sum(1 for s in nineth if len(s.scheduled_sh) == 0)
-    ninth_with_1 = sum(1 for s in nineth if len(s.scheduled_sh) == 1)
-    ninth_with_2 = sum(1 for s in nineth if len(s.scheduled_sh) == 2)
-
-    tenth_with_0 = sum(1 for s in tenth if len(s.scheduled_sh) == 0)
-    tenth_with_1 = sum(1 for s in tenth if len(s.scheduled_sh) == 1)
-    tenth_with_2 = sum(1 for s in tenth if len(s.scheduled_sh) == 2)
-
-
-
-
-    # Debug: Count 9th graders by number of available blocks
-    avail_counts = [len(s.availability) for s in nineth]
-    max_avail = max(avail_counts) if avail_counts else 0
-
-    print(f"\n--- 9th Grader Availability Distribution ---")
-    for count in range(max_avail + 1):
-        num_students = sum(1 for a in avail_counts if a == count)
-        print(f"  {count} available blocks: {num_students}")
-    print(f"  Total 9th graders: {len(nineth)}")
-
-
-    print(f"\n--- Section Fill Counts ---")
-    for block, info in _sh_sections.items():
-        print(f"  {block}: {block.which_block()}: {info['num_of_students_in_here']} students")
-    
-
-    print(f"\n--- 9th Grader Study Hall Distribution ---")
-    print(f"  0 study halls: {ninth_with_0}")
-    print(f"  1 study hall:  {ninth_with_1}")
-    print(f"  2 study halls: {ninth_with_2}")
-    print(f"  Total 9th graders: {len(nineth)}")
-
-    print(f"\n--- 10th Grader Study Hall Distribution ---")
-    print(f"  0 study halls: {tenth_with_0}")
-    print(f"  1 study hall:  {tenth_with_1}")
-    print(f"  2 study halls: {tenth_with_2}")
-    print(f"  Total 9th graders: {len(tenth)}")
-
-    print("\n--- Students With Notes ---")
-    students_with_notes = [s for s in _students if s.notes]
-    if not students_with_notes:
-        print("  None")
-    else:
-        for s in students_with_notes:
-            print(f"  {s.name}: {s.notes}")
-    
