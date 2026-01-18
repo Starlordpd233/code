@@ -40,7 +40,11 @@ def update_sh_section(action, stu, block, sh_sections):
     return "failed"
 
 def swap_and_move(stu_in, stu_out, block_of_swapping, destination_block_for_stu_out, _sh_sections):
-
+    """
+    Use this function when a students needs placement but all their options are at max capacity.
+    Bumps stu_out to their alternative, freeing up a spot for stu_in
+    Use with student.can_move_out()
+    """
 
     #move the student out first
     msg1 = update_sh_section("remove", stu_out, block_of_swapping, _sh_sections)
@@ -54,6 +58,46 @@ def swap_and_move(stu_in, stu_out, block_of_swapping, destination_block_for_stu_
     stu_in.notes.append(f"Placed in {block_of_swapping} after bumping {stu_out.name}")
 
     return msg1, msg2, msg3
+
+def rescue_capacity_swaps_for_ninth(ninth_graders, sh_sections, max_ppl_per_sh):
+    rescued = 0
+
+    targets = [s for s in ninth_graders if s.needs_sh()]
+
+    for student in targets:
+        alternatives = [b for b in student.availability if b not in student.scheduled_sh]
+        placed = False
+        any_passed_spacing = False
+
+        for alt in alternatives:
+            spacing_ok = all(alt.get_distance(scheduled) > 1 for scheduled in student.scheduled_sh)
+            if not spacing_ok:
+                continue
+            any_passed_spacing = True
+
+            if sh_sections[alt]["num_of_students_in_here"] < max_ppl_per_sh:
+                continue #has room, should've been placed in round 2
+
+            for donor in list(sh_sections[alt]["list_of_students"]):
+                ok, donor_destination = donor.can_move_out(alt, sh_sections, max_ppl_per_sh)
+
+                if ok and donor_destination is not None:
+                    if student.add_sh(alt):
+                        swap_and_move(student, donor, alt, donor_destination, sh_sections)
+                        rescued += 1
+                        placed = True
+                        break
+            if placed:
+                break
+        if not placed and alternatives:
+              if not any_passed_spacing:
+                  student.notes.append("Rescue failed: all alternatives failed spacing check")
+              else:
+                  student.notes.append("Rescue failed: no donor in full sections could be moved out")
+
+    return rescued
+
+
 
 
 #Public Functions for UI
@@ -184,14 +228,13 @@ def schedule():
             candidates = get_valid_candidates(student, _sh_sections, max_ppl_per_sh)
             best = pick_best_section(candidates, _sh_sections)
         
-            #relaxed attempt to pick best by relaxing distance rule
+            #if no best is picked, relaxed attempt to pick best by relaxing distance rule
             if not best:
                 relaxed_candidates = [avail for avail in student.availability if _sh_sections[avail]["num_of_students_in_here"] < max_ppl_per_sh and avail not in student.scheduled_sh]
 
                 best = pick_best_section(relaxed_candidates, _sh_sections)
                 if best:
                     student.notes.append("Placed with relaxed spacing rule for second study hall (consecutive study halls now)")
-
 
             if best and student.add_sh(best):
                 msg = update_sh_section("add", student, best, _sh_sections)
@@ -201,6 +244,11 @@ def schedule():
             #failed for some other reasons
             elif not best:
                 student.notes.append("Could not place the second study hall: no available section under capacity (after relaxing spacing)")
+
+
+    #-----------------------------------------------------------------------
+    #THIRD ROUND (RESCUE): capacity-based swaps for 9th graders still needing SH after second round placement
+    rescued_count = rescue_capacity_swaps_for_ninth(ninth_grader, _sh_sections, max_ppl_per_sh)
     
     #-----------------------------------------------------------------------
     #FOR TENTH GRADER
@@ -237,15 +285,25 @@ def schedule():
         
                     update_sh_section("add", student, und, _sh_sections)
                     update_sh_section("remove", student, donor, _sh_sections)
+
+                    student.notes.append(
+                        f"Reassigned from {donor} to {und} to help meet minimum enrollment in {und} (min {min_ppl_per_sh})."
+                    )
                     moved = True
                     break
                 if moved:
                     break
                 
             if not moved:
+                for s in _sh_sections[und]["list_of_students"]:
+                    s.notes.append(
+                        f"Section {und} remained underfilled (min {min_ppl_per_sh}); no eligible transfers found."
+                    )
                 break
 
+    
 
+    #for error handling and printing in terminal
     total_enrollments = sum(info["num_of_students_in_here"] for info in _sh_sections.values())
 
     short_ninth = sum(1 for s in ninth_grader if len(s.scheduled_sh) < 2)
@@ -256,7 +314,7 @@ def schedule():
 
 
     db_path = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/output/database_output_class_enrollment.csv'
-    report_path = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/output/scheduling_report.txt'
+    report_path = '/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/daytime_studyhall_project/output/human_report.txt'
 
     db_success, db_msg, db_count = write_database_output(_sh_sections, db_path)
     report_success, report_msg, report_count = write_human_report(report_path)
@@ -265,6 +323,8 @@ def schedule():
     lines = []
     lines.append(f"Successfully scheduled {len(_students)} students.")
     lines.append(f"- {total_enrollments} total enrollments")
+    if rescued_count > 0:
+        lines.append(f"- {rescued_count} students rescued via capacity swaps")
     lines.append(f"- {short_total} students short of target")
 
     if underfilled_count > 0:
