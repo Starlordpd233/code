@@ -62,7 +62,7 @@ def sort_sh_sections(sh_sections: dict) -> dict:
         block.day,
         block.block
     ))
-    #how effective will this sort be? what will the outcome be?
+
 
 
 def get_valid_candidates(student, sh_sections, max_capacity):

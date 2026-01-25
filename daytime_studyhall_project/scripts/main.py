@@ -272,7 +272,7 @@ def schedule():
         moved = False
 
         while _sh_sections[und]["num_of_students_in_here"] < min_ppl_per_sh: 
-            donor_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] > 25]
+            donor_sections = [b for b in _sh_sections if _sh_sections[b]["num_of_students_in_here"] > 25] #instead of hardcoding a number, we can start with the section with the most people and then the next large section, then the next, etc.
 
             moved = False
             for donor in donor_sections:
@@ -290,9 +290,9 @@ def schedule():
                         f"Reassigned from {donor} to {und} to help meet minimum enrollment in {und} (min {min_ppl_per_sh})."
                     )
                     moved = True
-                    break
+                    break #we have transfered one student from this donor. we will stop looking for other students in this donor
                 if moved:
-                    break
+                    break #we already moved one student, stop scanning other donor sections
                 
             if not moved:
                 for s in _sh_sections[und]["list_of_students"]:
@@ -451,7 +451,7 @@ def write_human_report(output_path):
             status = "UNDERFILLED"
         else:
             status = "OK"
-        lines.append(f"{str(block):<10} {count:>3} students  [{status}]")
+        lines.append(f"{str(block):<10} {block.which_block()} {count:>5} students  [{status}]")
 
     lines.append("")
     lines.append(f"Active Study Hall Sections Counts: {len(ok_sections) + len(underfilled)}  |  Empty: {len(empty_sections)}  |  Underfilled: {len(underfilled)}")

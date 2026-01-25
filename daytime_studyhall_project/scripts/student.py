@@ -74,7 +74,7 @@ class Student:
                             return True, alt #prefers blocks 2/4
                         
                         if fallback is None:
-                            fallback = alt #if not, 1st block
+                            fallback = alt #if not, 1st block #set once to fulfill lower demand first
 
                 if fallback is not None:
                     return (True, fallback)
