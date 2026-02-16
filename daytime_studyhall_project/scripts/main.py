@@ -372,11 +372,15 @@ def write_database_output(sh_section, output_path):
         return (False, f"Exported failed: {e}", 0)
 
 
+from datetime import datetime
 
 def write_human_report(output_path):
     global _students, _sh_sections
+    WIDTH = 60
     min_ppl_per_sh = 5
     lines = []
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     #helpers
     def get_target(grade):
@@ -415,33 +419,44 @@ def write_human_report(output_path):
     students_with_notes = [s for s in _students if s.notes]
 
 
-    lines.append("=" * 60)
-    lines.append("DAYTIME STUDY HALL SCHEDULING REPORT")
+    lines.append("=" * WIDTH)
+    lines.append("DAYTIME STUDY HALL SCHEDULING REPORT".center(WIDTH))
+    lines.append(f"Generated: {timestamp}".center(WIDTH))
+    lines.append("=" * WIDTH)
     lines.append("")
 
-    lines.append("SUMMARY")
-    lines.append("-" * 40)
-    lines.append(f"Total students: {len(_students)}")
-    lines.append(f"Total enrollments: {total_enrollments}")
+    if not short_students:
+        lines.append(f"{'  ALL TARGETS MET  ':=^{WIDTH}}")
+    else:
+        lines.append(f"{'  WARNING: Some students below target  ':=^{WIDTH}}")
+    lines.append("")
+
+    lines.append("1. SUMMARY")
+    lines.append("-" * WIDTH)
+    lines.append(f"{'Total Students:':<20} {len(_students):>6}")
+    lines.append(f"{'Total Enrollments:':<20} {total_enrollments:>6}")
     lines.append("")
 
     lines.append("9th Graders (target: 2 study halls):")
-    lines.append(f"2 study halls: {ninth_2}")
-    lines.append(f"1 study hall:  {ninth_1}")
-    lines.append(f"0 study halls: {ninth_0}")
-    lines.append(f"Total Num of 9th Graders: {len(ninth)}")
+    lines.append(f"  {'2 study halls:':<18} {ninth_2:>4}")
+    lines.append(f"  {'1 study hall:':<18} {ninth_1:>4}")
+    lines.append(f"  {'0 study halls:':<18} {ninth_0:>4}")
+    lines.append(f"  {'Total:':<18} {len(ninth):>4}")
     lines.append("")
+
 
     lines.append("10th Graders (target: 1 study hall):")
-    lines.append(f"1 study hall:  {tenth_1}")
-    lines.append(f"0 study halls: {tenth_0}")
-    lines.append(f"Total Num of 10th Graders: {len(tenth)}")
+    lines.append(f"  {'1 study hall:':<18} {tenth_1:>4}")
+    lines.append(f"  {'0 study halls:':<18} {tenth_0:>4}")
+    lines.append(f"  {'Total:':<18} {len(tenth):>4}")
     lines.append("")
 
 
-    lines.append("=" * 60)
-    lines.append("SECTION FILL SUMMARY")
-    lines.append("-" * 40)
+    lines.append("=" * WIDTH)
+    lines.append("2. SECTION FILL SUMMARY")
+    lines.append("-" * WIDTH)
+    lines.append(f"  {'Section':<8}  {'Block':<8}  {'Enrolled':<13}  Status")
+    lines.append("")
 
     for block in sorted(_sh_sections.keys(), key=lambda b: (b.day, b.block)): #order by day and block for readability
         count = _sh_sections[block]["num_of_students_in_here"]
@@ -451,7 +466,7 @@ def write_human_report(output_path):
             status = "UNDERFILLED"
         else:
             status = "OK"
-        lines.append(f"{str(block):<10} {block.which_block()} {count:>5} students  [{status}]")
+        lines.append(f"  {str(block):<8}  Block {block.which_block():<2}  {count:>3} students   [{status}]")
 
     lines.append("")
     lines.append(f"Active Study Hall Sections Counts: {len(ok_sections) + len(underfilled)}  |  Empty: {len(empty_sections)}  |  Underfilled: {len(underfilled)}")
@@ -474,7 +489,7 @@ def write_human_report(output_path):
 
 
     lines.append("=" * 60)
-    lines.append("NOTES FROM ASSIGNMENT PROCESS")
+    lines.append("3. NOTES FROM ASSIGNMENT PROCESS")
     lines.append("-" * 50)
 
     if not students_with_notes:

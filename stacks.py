@@ -1,3 +1,5 @@
+from collections import deque
+
 '''
 a stack of plates (data) from bottom to up; you only access the top plate and don't mess with the ones below
 last in, first out: the
@@ -37,6 +39,26 @@ peak: O(1)
 empty: O(1)
 
 '''
+
+
+def reverse_string(s: str) -> str:
+    stack = []
+    ret = []
+
+    for string in s:
+        stack.append(string)
+    while stack:
+        ret.append(stack.pop())
+    
+    return "".join(ret)
+
+print(reverse_string("Hello"))
+
+
+
+
+
+
 
 def check(str): #only () and [] are counted
     stack = []
