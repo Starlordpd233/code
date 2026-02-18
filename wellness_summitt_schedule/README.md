@@ -15,11 +15,11 @@
 ### Speaker Availability Matrix
 - **8 Total Speakers** (each covering 1 unique topic)
 - **5 Speakers:** Limited to **1 block only** (either Block 1 or Block 2)
-- **3 Speakers:** Available to run **2 sessions** (can be scheduled in both blocks, or twice in one block if demand requires)
+- **3 Speakers:** Available to run **2 sessions** (can be scheduled in both blocks (although both blocks cannot be happening simultaneously), or twice in one block if demand requires)
 
 ### Session Requirements
 - **Total Topics:** 8 distinct talk topics
-- **Mandatory Coverage:** Every topic must run at least once
+- **Mandatory Coverage:** Every topic must run at least once (or if in the extreme scenario where very very few people signed up for this workshop, that topic need not be run)
 - **Minimum Capacity:** 10 participants (absolute minimum)
 - **Ideal Capacity:** 15+ participants per session
 - **Maximum Capacity:** Physical room capacity minus configurable buffer percentage (do not fill to absolute maximum)
@@ -27,14 +27,15 @@
 ## 3. Participant Assignment Logic
 
 ### Input Data Structure
-- **Survey Data:** Participants rank topics by preference
+- **Survey Data:** Participants (students/faculties/staffs/guests) rank topics by preference; strings of the topics will be fixed and deterministic
 - **Timestamp Priority:** Survey submission time preserved; used as tiebreaker when participants from different schools have identical priority rankings
 - **School Affiliation:** Multiple participants may come from the same school
 
-### Assignment Priorities
+### Initial Assignment Priorities (WILL BE LATER REVISED)
 1. **Strategic Separation:** If two topics show high correlated demand (e.g., many participants rank "Mental Wellness" #1 and "Self-Care" #2), schedule these in **separate blocks** to maximize attendance satisfaction
-2. **Geographic Optimization:** Place high-demand talks in strategically located spaces to manage foot traffic
+2. **Geographic Optimization:** Place high-demand talks in strategically located spaces (physical capacity) to manage foot traffic
 3. **Capacity Management:** Prioritize filling minimum requirements (10–15 people) before optimizing for preferences
+4. **Filling Priority:** When filling people, we will try to assign each person's first and second priority without constraints, although this can be a concerning action. 
 
 ## 4. Algorithm Workflow
 
@@ -75,6 +76,10 @@ System must handle runtime changes:
 - **Dynamic Rebalancing:** Capability to rerun optimization with updated constraints
 
 ## 6. Implementation Specifications
+
+### Notes for Current Stage 
+- Currently we will not put any hard max caps for the maximum number of people allowed in an occurences
+
 
 ### Configurable Parameters (Global Variables)
 ```python

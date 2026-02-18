@@ -36,9 +36,6 @@ class Participant:
         self.name = name
         self.ranked_talk_ids = ranked_talk_ids
 
-
-# --------------------------
-# TODO 1: Demand
 # --------------------------
 
 def compute_demand_scores(talks:dict, participants:dict, top_k=5):
@@ -63,7 +60,23 @@ def compute_demand_scores(talks:dict, participants:dict, top_k=5):
       Mutates each Talk object's .demand_score
     """
 
-    pass
+    if top_k <= 0:
+      for talk in talks.values():
+        talk.demand_score = 0
+
+    #reset step
+    for talk in talks.values():
+      talk.demand_score = 0 
+    
+    for participant in participants.values():
+      ranked = participant.ranked_talk_ids
+
+      k = min(top_k, len(ranked))
+
+      for i in range(k):
+        talk_id = ranked[i]
+        points = top_k - i
+        talks[talk_id].demand_score += points
 
 
 # --------------------------
@@ -93,7 +106,24 @@ def build_conflict_matrix(talks:dict, participants:dict, top_k=5):
     talk_ids = list(talks.keys())
     talk_ids.sort()
 
-    #TODO: populate conflict dictionary
+    for a in talk_ids:
+      for b in talk_ids:
+        conflict[(a,b)] = 0
+    
+    for participant in participants.values():
+      ranked = participant.ranked_talk_ids
+
+      k = min(top_k, len(ranked))
+      top = ranked[:k]
+
+      for i in range(len(top)):
+        for j in range(i+1, len(top)):
+          a = top[i]
+          b = top[j]
+
+          conflict[(a,b)] += 1
+          conflict[(b,a)] += 1
+
 
     return conflict
 
