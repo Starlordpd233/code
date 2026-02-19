@@ -24,6 +24,7 @@ class Participant:
     def __init__(self, datalist, header_index):
         self.name = datalist[header_index["Name"]].strip()
         self.school = datalist[header_index['School Name']].strip()
+        self.email = datalist[header_index["Email"]].strip() if "Email" in header_index else ""
 
         raw = datalist[header_index["Workshop Ranking"]].strip()
 

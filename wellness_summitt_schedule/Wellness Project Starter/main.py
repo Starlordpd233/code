@@ -411,13 +411,24 @@ def print_unassigned(participants):
 
 LOW_SATISFACTION_THRESHOLD = 3
 
-# --- End of Claude addition ---
+def export_assignments(participants, filename="/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/wellness_summitt_schedule/Wellness Project Starter/assignments_output.csv"):
+    with open(filename, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Name", "Email", "Session 1", "Session 2"])
+        for participant in participants.values():
+            occ1 = participant.assignment[1]
+            occ2 = participant.assignment[2]
+            session1 = occ1.talk.title if occ1 else "Unassigned"
+            session2 = occ2.talk.title if occ2 else "Unassigned"
+            writer.writerow([participant.name, participant.email, session1, session2])
+    print(f"Assignments exported to {filename}")
+
 
 def main():
     #read data
-    talks = load_objects('code/wellness_summitt_schedule/Wellness Project Starter/Sessions.csv', Talk, 'talk_id')
-    rooms = load_objects('code/wellness_summitt_schedule/Wellness Project Starter/Rooms.csv', Room, 'name')
-    participants = load_objects("code/wellness_summitt_schedule/Wellness Project Starter/Participants.csv", Participant, "name")
+    talks = load_objects('data/Sessions.csv', Talk, 'talk_id')
+    rooms = load_objects('data/Rooms.csv', Room, 'name')
+    participants = load_objects("data/Participants.csv", Participant, "name")
 
     # 1) demand
     compute_demand_scores(talks, participants)
@@ -443,6 +454,7 @@ def main():
     print_occurrence_summary(talks)
     print_satisfaction_summary(participants)
     print_unassigned(participants)
+    export_assignments(participants)
 
 if __name__ == '__main__':
     main()

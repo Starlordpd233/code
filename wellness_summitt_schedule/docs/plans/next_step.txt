@@ -1,0 +1,12 @@
+Add the following features to your Wellness Scheduling Project:
+
+Allow for restricting talks into specific blocks based on the Restrictions column in the CSV (0=anywhere, 1=only 1, 2=only 2)
+Add an email field to your Participant class that can be read under the "Email Address" header. Do this by altering the __init__ method.
+Create two output documents (both of which should use the long name for session titles.
+one that summarizes the sessions, what block they are in, where they are being held, and how many people have been assigned to them.
+one that is a participant assignment CSV with the following columns: Name, Email Address, Block 1 Assignment, Block 2 Assignment
+If you have additional time before the end of the block, make your project better:
+
+Don't run two occurrences of a talk unless there are sufficient numbers to merit that.
+Make sure every occurrence has at least 10 people assigned to it.
+Make sure no talk is over the capacity of its room.
