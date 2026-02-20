@@ -78,7 +78,7 @@ System must handle runtime changes:
 ## 6. Implementation Specifications
 
 ### Notes for Current Stage 
-- Currently we will not put any hard max caps for the maximum number of people allowed in an occurences
+- The "Email" field in the participant's information is not used since all values are annonymous. We will use the real "Email Address" field for all cases. 
 
 
 ### Configurable Parameters (Global Variables)

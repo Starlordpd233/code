@@ -1,3 +1,5 @@
+CAPACITY_BUFFER_PERCENT = 0.05
+
 class Talk:
     def __init__(self, datalist, header_index):
         self.talk_id = datalist[header_index["Short Title"]].strip()
@@ -16,6 +18,7 @@ class Room:
     def __init__(self, datalist, header_index):
         self.name = datalist[header_index["Room"]].strip()
         self.capacity = int(datalist[header_index["Capacity"]])
+        self.effective_capacity = int(self.capacity * (1 - CAPACITY_BUFFER_PERCENT))
 
     def __lt__(self, other):
         return self.capacity < other.capacity
@@ -24,7 +27,7 @@ class Participant:
     def __init__(self, datalist, header_index):
         self.name = datalist[header_index["Name"]].strip()
         self.school = datalist[header_index['School Name']].strip()
-        self.email = datalist[header_index["Email"]].strip() if "Email" in header_index else ""
+        self.email = datalist[header_index["Email Address"]].strip() if "Email Address" in header_index else ""
 
         raw = datalist[header_index["Workshop Ranking"]].strip()
 
@@ -58,7 +61,7 @@ class Occurrence:
         self.participants = []    # list of Participant objects
 
     def capacity(self):
-        return self.room.capacity
+        return self.room.effective_capacity
 
     def is_full(self):
         return len(self.participants) >= self.capacity()

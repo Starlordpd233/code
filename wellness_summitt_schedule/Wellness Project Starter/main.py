@@ -1,8 +1,9 @@
 import csv
 from typing import Any
 from Classes import *
+import heapq 
 
-CAPACITY_BUFFER_PERCENT = 0.1
+MIN_PEOPLE_PER_SESSION = 10
 # ---------------------------
 # Load Data
 # ---------------------------
@@ -156,7 +157,7 @@ def create_occurrences(talks, max_total_occurrences):
         occurrences.append(occ1)
 
 
-    eligible_talks = [talk for talk in talks.values() if talk.max_runs == 2]
+    eligible_talks = [talk for talk in talks.values() if talk.max_runs == 2 and talk.demand_score >= 130]
     eligible_talks.sort(reverse=True)
 
     for talk in eligible_talks:
@@ -269,9 +270,38 @@ def assign_participants_initial(talks: dict, participants: dict):
         for occ in talks[talk_id].occurrences:
           if not participant.assignment[occ.block]:
             occ.add_participant(participant)
+            break #only one occurrence per talk
         if participant.assignment[1] and participant.assignment[2]: #if participant's both are assigned
           break
-    
+
+
+def calculate_move_cost(participant, curr_occ, new_occ):
+  cost = 0
+
+  if len(new_occ.participants) >= new_occ.room.effective_capacity:
+    return float('inf')
+  if new_occ == curr_occ:
+    return float('inf')
+  
+  other_block = 1 if new_occ.block == 2 else 2
+  other_assignment = participant.assignment[other_block]
+  if other_assignment and other_assignment.talk.talk_id == new_occ.talk.talk_id:
+    return float('inf')
+
+  current_rank = participant.session_rank(curr_occ.talk.talk_id)
+  new_rank = participant.session_rank(new_occ.talk.talk_id)
+
+  if new_rank is None:
+    cost += float(1000)
+  
+  if len(new_occ.participants) <= MIN_PEOPLE_PER_SESSION:
+    cost -= float(100)
+  
+  #is there any other factors we should consider?
+  if new_rank is not None and current_rank is not None:
+    cost += new_rank - current_rank
+
+  return cost
 
 
 # ---------------------------
@@ -285,6 +315,10 @@ def assign_rooms(talks, rooms):
     - Rooms can be reused across blocks
     - If a talk has TWO occurrences, BOTH occurrences must use the SAME room
     """
+    for talk in talks.values():
+      for occ in talk.occurrences:
+        occ.room = None
+    
     room_used = {1: set[Any](), 2: set()} # to check which rooms have already been used
 
     #first secure rooms for talks with 2 occurrences
@@ -330,15 +364,87 @@ def assign_rooms(talks, rooms):
           if len(occ.participants) <= effective_max_ppl:
             occ.room = room
             room_used[block].add(room)
+            block_rooms = [r for r in available_rooms if r not in room_used[block]]
             break
 
+def optimize_assignments(talks):
+  moves_heap = []
+  counter = 0
+
+  occurrences = [occ for talk in talks.values() for occ in talk.occurrences]
+
+  overfilled_occ = [occ for occ in occurrences if occ.is_full()]
+
+  for occ in overfilled_occ:
+    for participant in occ.participants:
+      same_block_occs = [o for o in occurrences if o.block == occ.block and o != occ]
+      
+      for new_occ in same_block_occs:
+        cost = calculate_move_cost(participant, occ, new_occ)
+        if cost != float('inf'):
+          heapq.heappush(moves_heap, (cost, counter, participant, occ, new_occ))
+          counter += 1
+  
+  move = 0
+
+  while moves_heap:
+    cost, _, participant, curr_occ, new_occ = heapq.heappop(moves_heap)
+
+    if len(curr_occ.participants) <= curr_occ.room.effective_capacity:
+      continue
+    if len(new_occ.participants) >= new_occ.room.effective_capacity:
+      continue
+    if participant.assignment[curr_occ.block] != curr_occ:
+      continue
+
+    curr_occ.remove_participant(participant)
+    new_occ.add_participant(participant)
+    move += 1
+  
+
+  #now for underfilled occs
+  underfilled_occs = [occ for occ in occurrences if len(occ.participants) <= MIN_PEOPLE_PER_SESSION]
+
+  for occ in underfilled_occs:
+    while len(occ.participants) < MIN_PEOPLE_PER_SESSION:
+      
+      donor_occs = [o for o in occurrences if o.block == occ.block and o != occ and len(o.participants) > MIN_PEOPLE_PER_SESSION + 2]
+
+      if not donor_occs:
+        break
+      
+      best_candidate = None
+      best_rank = float('inf')
+      best_donor = None
+
+      for donor_occ in donor_occs:
+        for participant in donor_occ.participants:
+          rank = participant.session_rank(occ.talk.talk_id)
+
+          other_block = 1 if occ.block == 2 else 2
+          other_assignment = participant.assignment[other_block]
+          if other_assignment and other_assignment.talk.talk_id == occ.talk.talk_id:
+            continue
+
+          if rank is not None and rank < best_rank:
+            best_rank = rank
+            best_candidate = participant
+            best_donor = donor_occ
+      if best_candidate is None:
+        break
+
+      best_donor.remove_participant(best_candidate)
+      occ.add_participant(best_candidate)
+      move += 1
+  
+  return move
 
 
 # ---------------------------
 # Debug / verification helpers
 # ---------------------------
 
-def print_stage1_summary(talks, occurrences):
+def print_stage1_summary_original(talks, occurrences):
     print("---- STAGE 1 SUMMARY ----")
     print("Talks:", len(talks))
     print("Occurrences:", len(occurrences))
@@ -349,72 +455,50 @@ def print_stage1_summary(talks, occurrences):
         occ_info = [(o.occ_id, o.block, o.room.name if o.room else None) for o in t.occurrences]
         print(f"{t.talk_id:>20} | demand={t.demand_score:>6} | occs={occ_info}")
 
+def print_stage1_summary(talks, occurrences):
+    print("---- STAGE 1 SUMMARY ----")
+    print("Talks:", len(talks))
+    print("Occurrences:", len(occurrences))
+    print()
 
+    sample = list(talks.values())
+    for t in sample:
+        occ_info = []
+        for o in t.occurrences:
+            room_name = o.room.name if o.room else "No room"
+            num_assigned = len(o.participants)
+            capacity = o.capacity() if o.room else "N/A"
+            occ_info.append((o.occ_id, o.block, room_name, num_assigned, capacity))
+        print(f"{t.talk_id:>20} | demand={t.demand_score:>6} | occs={occ_info}")
 
-# --- Added by Claude ---
+def export_session_summary(talks, filename="/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/wellness_summitt_schedule/Wellness Project Starter/session_summary.csv"):
+  with open(filename, 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
 
-def print_occurrence_summary(talks):
-    print("---- OCCURRENCE SUMMARY ----")
+    writer.writerow([
+      "Title", 
+      "Block", 
+      "Room",
+      "Participant Count"
+    ])
     for talk in talks.values():
-        for occ in talk.occurrences:
-            room_name = occ.room.name if occ.room else "No room"
-            capacity = occ.room.capacity if occ.room else "N/A"
-            effective_max = f"{occ.room.capacity * (1 - CAPACITY_BUFFER_PERCENT):.0f}" if occ.room else "N/A"
-            print(
-                f"{occ.occ_id:>25} | block={occ.block} | room={room_name:>20} "
-                f"| capacity={capacity} | effective_max={effective_max} | participants={len(occ.participants)}"
-            )
-    print()
+      for occ in talk.occurrences:
+        title = talk.title
+        room_name = occ.room.name if occ.room else "No room"
+        block = occ.block
+        participant_count = len(occ.participants)
+        writer.writerow([
+          title, 
+          block, 
+          room_name,
+          participant_count
+        ])
 
-
-def print_satisfaction_summary(participants):
-    print("---- SATISFACTION SUMMARY ----")
-    rank_counts = {}
-    unranked = 0
-
-    for participant in participants.values():
-        for block in [1, 2]:
-            occ = participant.assignment[block]
-            if occ is None:
-                continue
-            rank = participant.session_rank(occ.talk.talk_id)
-            if rank is None:
-                unranked += 1
-            else:
-                rank_counts[rank] = rank_counts.get(rank, 0) + 1
-
-    total = sum(rank_counts.values()) + unranked
-    for rank in sorted(rank_counts):
-        label = f"Rank {rank + 1}"
-        count = rank_counts[rank]
-        low_flag = " *** LOW SATISFACTION ***" if rank >= (8 - LOW_SATISFACTION_THRESHOLD) else ""
-        print(f"  {label}: {count} assignments{low_flag}")
-    if unranked:
-        print(f"  Unranked talk assigned: {unranked}")
-    print(f"  Total assignments counted: {total}")
-    print()
-
-
-def print_unassigned(participants):
-    print("---- UNASSIGNED PARTICIPANTS ----")
-    count = 0
-    for participant in participants.values():
-        missing = [b for b in [1, 2] if participant.assignment[b] is None]
-        if missing:
-            print(f"  {participant.name} — missing block(s): {missing}")
-            count += 1
-    if count == 0:
-        print("  All participants fully assigned.")
-    else:
-        print(f"  Total unassigned: {count}")
-    print()
-
-LOW_SATISFACTION_THRESHOLD = 3
 
 def export_assignments(participants, filename="/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/wellness_summitt_schedule/Wellness Project Starter/assignments_output.csv"):
     with open(filename, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(["Name", "Email", "Session 1", "Session 2"])
+        writer.writerow(["Name", "Email Address", "Block 1 Assignment", "Block 2 Assignment"])
         for participant in participants.values():
             occ1 = participant.assignment[1]
             occ2 = participant.assignment[2]
@@ -424,11 +508,14 @@ def export_assignments(participants, filename="/Users/MatthewLi/Desktop/Senior Y
     print(f"Assignments exported to {filename}")
 
 
+
+
+
 def main():
     #read data
-    talks = load_objects('data/Sessions.csv', Talk, 'talk_id')
-    rooms = load_objects('data/Rooms.csv', Room, 'name')
-    participants = load_objects("data/Participants.csv", Participant, "name")
+    talks = load_objects("/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/wellness_summitt_schedule/Wellness Project Starter/data/Sessions.csv", Talk, 'talk_id')
+    rooms = load_objects("/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/wellness_summitt_schedule/Wellness Project Starter/data/Rooms.csv", Room, 'name')
+    participants = load_objects("/Users/MatthewLi/Desktop/Senior Year/Winter/Comp_Sci/code/wellness_summitt_schedule/Wellness Project Starter/data/Participants.csv", Participant, "name")
 
     # 1) demand
     compute_demand_scores(talks, participants)
@@ -447,14 +534,20 @@ def main():
     assign_participants_initial(talks, participants)
 
     # 6) assign rooms
-    assign_rooms(talks, rooms)
+    MAX_ITERATIONS = 10
+
+    for i in range(MAX_ITERATIONS):
+      assign_rooms(talks, rooms)
+      moved = optimize_assignments(talks)
+      print(f"  Optimization pass {i+1}: {moved} moves")
+      if moved == 0:
+        break
+
 
     # 7) verify
     print_stage1_summary(talks, occurrences)
-    print_occurrence_summary(talks)
-    print_satisfaction_summary(participants)
-    print_unassigned(participants)
     export_assignments(participants)
+    export_session_summary(talks)
 
 if __name__ == '__main__':
     main()
